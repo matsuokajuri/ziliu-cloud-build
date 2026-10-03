@@ -25,6 +25,11 @@ try {
         "Lib/$sdk/ucrt/x64/ucrt.lib", "bin/$sdk/x64/rc.exe", "bin/$sdk/x64/midl.exe")) {
         if (-not (Test-Path (Join-Path $kits $relative))) { throw "Installed SDK missing $relative; no automatic SDK license acceptance." }
     }
+    # The frozen compiled-cache fixture includes Win32 Boost.Regex locale behavior.
+    $nativeLocale = & python -c 'import ctypes,json; k=ctypes.windll.kernel32; print(json.dumps(dict(user_lcid=k.GetUserDefaultLCID(),system_lcid=k.GetSystemDefaultLCID(),acp=k.GetACP())))'
+    Assert-Exit 'Native Rime fixture locale'
+    $localeIdentity = $nativeLocale | ConvertFrom-Json
+    if ($localeIdentity.user_lcid -ne 1041) { throw 'Frozen Rime fixture requires ja-JP user LCID 1041.' }
     $identity = [ordered]@{
         sourceCommit = (& git rev-parse HEAD)
         imageOS = $env:ImageOS
@@ -32,6 +37,7 @@ try {
         sdk = $sdk
         toolset = 'v145'
         configuration = 'Release'
+        rimeFixtureLocale = $localeIdentity
         runId = $env:GITHUB_RUN_ID
         runAttempt = $env:GITHUB_RUN_ATTEMPT
         guiAcceptance = 'NOT RUN: independent Windows 11 interactive acceptance required'

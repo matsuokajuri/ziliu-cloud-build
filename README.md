@@ -31,6 +31,10 @@ scripts\build-local.cmd Release
 The frozen Rime source fingerprint requires a Windows CRLF Rime Ice checkout
 plus LF first-party overlays; CI and `.gitattributes` preserve those reviewed
 bytes. A fingerprint mismatch is a failure, never a reason to regenerate the pin.
+The frozen compiled-cache fixture also requires the `ja-JP` user locale
+(LCID 1041): the pinned Windows Boost.Regex binary performs byte-wise case
+conversion when generating the English prism. CI selects and checks this locale
+only on its disposable runner. Product settings and the frozen hashes are unchanged.
 
 ## Dependencies and licenses
 

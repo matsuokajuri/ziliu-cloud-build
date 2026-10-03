@@ -32,6 +32,10 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
 
+      - name: Select frozen Rime test-fixture locale
+        shell: pwsh
+        run: Set-Culture -CultureInfo ja-JP
+
       - name: Build all products, require real Rime, test and package
         shell: pwsh
         run: ./scripts/ci/windows-build.ps1
