@@ -1,0 +1,7 @@
+{
+  "review_stage": "After first valid raw candidate probe, before any successful teacher response; input fixture and raw metrics preserved unchanged.",
+  "exclude_from_label_reviewed_metrics": {
+    "gongshi-company-full": "Fixture error: 公司 is gongsi, not gongshi. This is not evidence that the dictionary lacks 公司. Typo correction was not the intended test.",
+    "fangan-dislike-initials": "Fixture error: 反感 (fan gan) has initials fg, not fa. The input fa may be interpreted as a prefix but does not validate the declared initials case."
+  }
+}

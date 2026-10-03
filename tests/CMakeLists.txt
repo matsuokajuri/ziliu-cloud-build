@@ -1,0 +1,213 @@
+add_executable(ziliu_core_tests core_tests.cpp)
+target_link_libraries(ziliu_core_tests PRIVATE ziliu_core)
+ziliu_configure_target(ziliu_core_tests)
+
+add_test(NAME ziliu_core_tests COMMAND ziliu_core_tests)
+
+add_executable(ziliu_dictionary_epoch_tests dictionary_epoch_tests.cpp)
+target_link_libraries(ziliu_dictionary_epoch_tests PRIVATE ziliu_core)
+ziliu_configure_target(ziliu_dictionary_epoch_tests)
+add_test(NAME ziliu_dictionary_epoch_tests COMMAND ziliu_dictionary_epoch_tests)
+
+add_executable(ziliu_context_request_guard_tests context_request_guard_tests.cpp)
+target_link_libraries(ziliu_context_request_guard_tests PRIVATE ziliu_core)
+ziliu_configure_target(ziliu_context_request_guard_tests)
+add_test(NAME ziliu_context_request_guard_tests COMMAND ziliu_context_request_guard_tests)
+
+add_executable(ziliu_context_prefix_binding_tests context_prefix_binding_tests.cpp)
+target_link_libraries(ziliu_context_prefix_binding_tests PRIVATE ziliu_core)
+ziliu_configure_target(ziliu_context_prefix_binding_tests)
+add_test(NAME ziliu_context_prefix_binding_tests COMMAND ziliu_context_prefix_binding_tests)
+
+add_executable(ziliu_tsf_commit_caret_tests tsf_commit_caret_tests.cpp)
+ziliu_configure_target(ziliu_tsf_commit_caret_tests)
+add_test(NAME ziliu_tsf_commit_caret_tests COMMAND ziliu_tsf_commit_caret_tests)
+
+add_executable(ziliu_tsf_input_privacy_tests tsf_input_privacy_tests.cpp)
+target_include_directories(ziliu_tsf_input_privacy_tests PRIVATE ../src/core/include)
+target_link_libraries(ziliu_tsf_input_privacy_tests PRIVATE ole32 oleaut32 uuid)
+ziliu_configure_target(ziliu_tsf_input_privacy_tests)
+add_test(NAME ziliu_tsf_input_privacy_tests COMMAND ziliu_tsf_input_privacy_tests)
+
+add_executable(ziliu_tsf_context_event_probe_tests tsf_context_event_probe_tests.cpp)
+target_include_directories(ziliu_tsf_context_event_probe_tests PRIVATE ../src/tsf/include ../src/core/include)
+target_link_libraries(ziliu_tsf_context_event_probe_tests PRIVATE ole32 uuid)
+ziliu_configure_target(ziliu_tsf_context_event_probe_tests)
+add_test(NAME ziliu_tsf_context_event_probe_tests COMMAND ziliu_tsf_context_event_probe_tests)
+
+# A deliberately manual, visible host fixture for guest-only privacy acceptance.
+# It is excluded from normal builds and is not part of the product/package payload.
+add_executable(ziliu_alpha_input_scope_host WIN32 EXCLUDE_FROM_ALL alpha_input_scope_host.cpp)
+target_link_libraries(ziliu_alpha_input_scope_host PRIVATE ole32 oleaut32 uuid uiautomationcore)
+ziliu_configure_target(ziliu_alpha_input_scope_host)
+
+add_executable(ziliu_tsf_startup_key_queue_tests tsf_startup_key_queue_tests.cpp)
+ziliu_configure_target(ziliu_tsf_startup_key_queue_tests)
+add_test(NAME ziliu_tsf_startup_key_queue_tests COMMAND ziliu_tsf_startup_key_queue_tests)
+
+add_executable(ziliu_ui_preview_window_tests ui_preview_window_tests.cpp ../src/settings/app.manifest)
+target_link_libraries(ziliu_ui_preview_window_tests PRIVATE ziliu_ui)
+ziliu_configure_target(ziliu_ui_preview_window_tests)
+add_test(NAME ziliu_ui_preview_window_tests COMMAND ziliu_ui_preview_window_tests)
+set_tests_properties(ziliu_ui_preview_window_tests PROPERTIES TIMEOUT 20)
+
+add_executable(ziliu_ui_native_candidate_geometry_tests ui_native_candidate_geometry_tests.cpp)
+target_link_libraries(ziliu_ui_native_candidate_geometry_tests PRIVATE d2d1 dwrite ole32 windowscodecs)
+ziliu_configure_target(ziliu_ui_native_candidate_geometry_tests)
+add_test(NAME ziliu_ui_native_candidate_geometry_tests COMMAND ziliu_ui_native_candidate_geometry_tests)
+
+add_executable(ziliu_ui_sogou_horizontal_layout_tests ui_sogou_horizontal_layout_tests.cpp)
+ziliu_configure_target(ziliu_ui_sogou_horizontal_layout_tests)
+add_test(NAME ziliu_ui_sogou_horizontal_layout_tests COMMAND ziliu_ui_sogou_horizontal_layout_tests)
+
+add_executable(ziliu_ui_overlay_layout_tests ui_overlay_layout_tests.cpp)
+ziliu_configure_target(ziliu_ui_overlay_layout_tests)
+
+add_test(
+  NAME ziliu_ui_overlay_layout_tests
+  COMMAND ziliu_ui_overlay_layout_tests)
+
+add_executable(ziliu_ui_coordinate_space_tests ui_coordinate_space_tests.cpp)
+ziliu_configure_target(ziliu_ui_coordinate_space_tests)
+
+add_test(
+  NAME ziliu_ui_coordinate_space_tests
+  COMMAND ziliu_ui_coordinate_space_tests)
+
+add_executable(ziliu_ui_sogou_gdi_raster_scale_tests ui_sogou_gdi_raster_scale_tests.cpp)
+target_link_libraries(ziliu_ui_sogou_gdi_raster_scale_tests PRIVATE gdi32)
+ziliu_configure_target(ziliu_ui_sogou_gdi_raster_scale_tests)
+
+add_test(
+  NAME ziliu_ui_sogou_gdi_raster_scale_tests
+  COMMAND ziliu_ui_sogou_gdi_raster_scale_tests)
+
+add_executable(ziliu_ui_sogou_bitmap_patch_tests ui_sogou_bitmap_patch_tests.cpp)
+target_link_libraries(ziliu_ui_sogou_bitmap_patch_tests PRIVATE ziliu_core d2d1 gdi32)
+ziliu_configure_target(ziliu_ui_sogou_bitmap_patch_tests)
+
+add_test(
+  NAME ziliu_ui_sogou_bitmap_patch_tests
+  COMMAND ziliu_ui_sogou_bitmap_patch_tests)
+
+add_executable(ziliu_theme_manifest_tests theme_manifest_tests.cpp)
+target_link_libraries(ziliu_theme_manifest_tests PRIVATE ziliu_core)
+ziliu_configure_target(ziliu_theme_manifest_tests)
+
+add_test(NAME ziliu_theme_manifest_tests COMMAND ziliu_theme_manifest_tests)
+
+add_executable(ziliu_sogou_theme_tests sogou_theme_tests.cpp)
+target_link_libraries(ziliu_sogou_theme_tests PRIVATE ziliu_core)
+ziliu_configure_target(ziliu_sogou_theme_tests)
+
+add_test(NAME ziliu_sogou_theme_tests COMMAND ziliu_sogou_theme_tests)
+
+if(WIN32)
+  add_executable(ziliu_sogou_ssf_import_tests sogou_ssf_import_tests.cpp
+    ../src/settings/sogou_theme_import.cpp ../src/settings/sogou_ssf_container.cpp)
+  target_link_libraries(ziliu_sogou_ssf_import_tests PRIVATE ziliu_core bcrypt ole32 windowscodecs)
+  ziliu_configure_target(ziliu_sogou_ssf_import_tests)
+  add_test(NAME ziliu_sogou_ssf_import_tests COMMAND ziliu_sogou_ssf_import_tests)
+  set_tests_properties(ziliu_sogou_ssf_import_tests PROPERTIES TIMEOUT 30)
+  add_executable(ziliu_sogou_ssf_container_tests
+    sogou_ssf_container_tests.cpp
+    ../src/settings/sogou_ssf_container.cpp)
+  target_link_libraries(ziliu_sogou_ssf_container_tests PRIVATE bcrypt)
+  ziliu_configure_target(ziliu_sogou_ssf_container_tests)
+
+  add_test(
+    NAME ziliu_sogou_ssf_container_tests
+    COMMAND ziliu_sogou_ssf_container_tests)
+endif()
+
+add_executable(ziliu_ipc_tests ipc_tests.cpp)
+target_link_libraries(ziliu_ipc_tests PRIVATE ziliu_ipc_client ziliu_ipc_server)
+ziliu_configure_target(ziliu_ipc_tests)
+
+add_test(NAME ziliu_ipc_tests COMMAND ziliu_ipc_tests)
+set_tests_properties(ziliu_ipc_tests PROPERTIES TIMEOUT 10)
+
+add_executable(ziliu_rime_engine_tests rime_engine_tests.cpp)
+target_link_libraries(ziliu_rime_engine_tests PRIVATE ziliu_broker_engine)
+target_compile_definitions(ziliu_rime_engine_tests PRIVATE
+  ZILIU_RIME_EPOCH_DIAGNOSTIC_TEST=0)
+target_include_directories(ziliu_rime_engine_tests SYSTEM PRIVATE
+  "${ZILIU_DEPENDENCY_ROOT}/third_party/librime/src")
+add_dependencies(ziliu_rime_engine_tests ZiliuBroker)
+ziliu_configure_target(ziliu_rime_engine_tests)
+
+# Compile a separate, opt-in-at-build-time adapter only for controlled Rime
+# diagnostics. Broker always links ziliu_broker_engine above, never this target.
+add_library(ziliu_rime_source_profile STATIC
+  ../src/broker/src/rime_source_profile.cpp
+  ../src/broker/src/rime_user_profile.cpp)
+target_include_directories(ziliu_rime_source_profile PUBLIC ../src/broker/include)
+target_link_libraries(ziliu_rime_source_profile PRIVATE bcrypt)
+ziliu_configure_target(ziliu_rime_source_profile)
+add_executable(ziliu_rime_source_profile_tests rime_source_profile_tests.cpp)
+target_link_libraries(ziliu_rime_source_profile_tests PRIVATE ziliu_rime_source_profile)
+ziliu_configure_target(ziliu_rime_source_profile_tests)
+add_test(NAME ziliu_rime_source_profile_tests COMMAND ziliu_rime_source_profile_tests)
+set_tests_properties(ziliu_rime_source_profile_tests PROPERTIES TIMEOUT 30)
+add_executable(ziliu_rime_user_profile_tests rime_user_profile_tests.cpp)
+target_link_libraries(ziliu_rime_user_profile_tests PRIVATE ziliu_rime_source_profile)
+ziliu_configure_target(ziliu_rime_user_profile_tests)
+add_test(NAME ziliu_rime_user_profile_tests COMMAND ziliu_rime_user_profile_tests)
+set_tests_properties(ziliu_rime_user_profile_tests PROPERTIES TIMEOUT 30)
+
+add_executable(ziliu_rime_epoch_diagnostic_tests
+  rime_engine_tests.cpp
+  ../src/broker/src/rime_engine.cpp)
+target_include_directories(ziliu_rime_epoch_diagnostic_tests PRIVATE
+  ../src/broker/include)
+target_include_directories(ziliu_rime_epoch_diagnostic_tests SYSTEM PRIVATE
+  "${ZILIU_DEPENDENCY_ROOT}/third_party/librime/src")
+target_compile_definitions(ziliu_rime_epoch_diagnostic_tests PRIVATE
+  ZILIU_RIME_EPOCH_DIAGNOSTIC_TEST=1
+  ZILIU_DISTRIBUTION_VERSION="${ZILIU_RELEASE_VERSION}")
+target_link_libraries(ziliu_rime_epoch_diagnostic_tests PRIVATE
+  ziliu_core ziliu_rime_source_profile ole32 shell32)
+add_dependencies(ziliu_rime_epoch_diagnostic_tests ZiliuBroker)
+ziliu_configure_target(ziliu_rime_epoch_diagnostic_tests)
+
+add_test(NAME ziliu_rime_engine_tests COMMAND ziliu_rime_engine_tests)
+add_test(NAME ziliu_rime_dictionary_epoch_tests
+  COMMAND ziliu_rime_epoch_diagnostic_tests --dictionary-epoch)
+add_test(NAME ziliu_rime_response_binding_tests
+  COMMAND ziliu_rime_epoch_diagnostic_tests --response-binding)
+add_test(NAME ziliu_rime_user_lua_file_tests
+  COMMAND ziliu_rime_epoch_diagnostic_tests --user-lua-file)
+add_test(NAME ziliu_rime_user_lua_dir_tests
+  COMMAND ziliu_rime_epoch_diagnostic_tests --user-lua-dir)
+add_test(NAME ziliu_rime_user_lua_self_remove_tests
+  COMMAND ziliu_rime_epoch_diagnostic_tests --user-lua-self-remove)
+add_test(NAME ziliu_rime_lua_search_env_tests
+  COMMAND ziliu_rime_epoch_diagnostic_tests --lua-search-env)
+add_test(NAME ziliu_rime_user_overlay_tests
+  COMMAND ziliu_rime_epoch_diagnostic_tests --user-overlay)
+add_test(NAME ziliu_rime_user_schema_tests
+  COMMAND ziliu_rime_epoch_diagnostic_tests --user-schema)
+add_test(NAME ziliu_rime_preexisting_cache_tests
+  COMMAND ziliu_rime_epoch_diagnostic_tests --preexisting-cache)
+add_test(NAME ziliu_rime_fresh_profile_tests
+  COMMAND ziliu_rime_epoch_diagnostic_tests --fresh-profile)
+# Override only disposable test data, never the installed user's dictionary.
+# An external directory can isolate database I/O from repository file watchers.
+set(ZILIU_RIME_TEST_DATA_ROOT "${CMAKE_BINARY_DIR}/test-state/rime-v3"
+  CACHE PATH "Disposable Rime test data root; each run creates its own child")
+if(NOT IS_ABSOLUTE "${ZILIU_RIME_TEST_DATA_ROOT}" OR
+   "${ZILIU_RIME_TEST_DATA_ROOT}" MATCHES ";")
+  message(FATAL_ERROR "ZILIU_RIME_TEST_DATA_ROOT must be an absolute path without semicolons")
+endif()
+set_tests_properties(ziliu_rime_engine_tests ziliu_rime_user_lua_file_tests
+  ziliu_rime_user_lua_dir_tests ziliu_rime_dictionary_epoch_tests
+  ziliu_rime_response_binding_tests
+  ziliu_rime_lua_search_env_tests
+  ziliu_rime_user_overlay_tests ziliu_rime_user_schema_tests
+  ziliu_rime_preexisting_cache_tests
+  ziliu_rime_fresh_profile_tests
+  ziliu_rime_user_lua_self_remove_tests PROPERTIES
+  ENVIRONMENT "ZILIU_RIME_USER_DATA_DIR=${ZILIU_RIME_TEST_DATA_ROOT}"
+  FAIL_REGULAR_EXPRESSION "Error opening db"
+  SKIP_RETURN_CODE 77
+  TIMEOUT 120)

@@ -1,0 +1,22 @@
+* text=auto
+*.cpp text eol=lf
+*.h text eol=lf
+*.hpp text eol=lf
+*.cmake text eol=lf
+CMakeLists.txt text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.rc text eol=crlf
+*.def text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.png binary
+*.ico binary
+data/ziliu/opencc/*.txt text eol=lf
+data/ziliu/opencc/LICENSE.OpenCC text eol=lf
+
+# The reviewed Rime source pin requires this overlay to remain LF on Windows.
+data/ziliu/ziliu_phrase.txt text eol=lf

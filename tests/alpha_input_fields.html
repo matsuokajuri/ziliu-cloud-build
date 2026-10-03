@@ -1,0 +1,576 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Ziliu TEST ONLY - local input fields</title>
+<style>body{font:16px sans-serif;max-width:46rem;margin:2rem}label{display:block;margin-top:1rem}textarea,input{display:block;width:100%;box-sizing:border-box}small{color:#555}</style>
+<h1>Ziliu TEST ONLY - local synthetic input fields</h1>
+<p>No network, form submission, or global keystroke tracking. The downloaded JSON contains only values, composition/input events, and code points from these fields.</p>
+<label>Ordinary<textarea id="ordinary" rows="2"></textarea></label>
+<label>Password<input id="password" type="password" autocomplete="off"></label>
+<label>Numeric-password synthetic PIN-like field <small>This HTML control does <strong>not</strong> assert that Edge exposes TSF <code>IS_NUMERIC_PIN</code>; use the native host fixture for that scope.</small><input id="pinLike" type="password" inputmode="numeric" autocomplete="off"></label>
+<label>Second ordinary<textarea id="ordinarySecond" rows="2"></textarea></label>
+<button id="export" type="button">Export synthetic results</button>
+<div id="sessionControls" hidden>
+<h2>真实操作会话边界测试（只记录本页元数据）</h2>
+<p>本模式不会自动切换输入框。保持字流中文模式，按步骤实际操作，不输入个人信息。
+页面标题全程固定；不使用 F8/F9，不运行模型。</p>
+<p id="sessionStatus" role="status" aria-live="polite"></p>
+<button id="sessionNext" type="button">记录本步完成，进入下一步</button>
+</div>
+<div id="prefixControls" hidden>
+<p>固定前文测试：依次点击下面六个按钮，每次只按 n，然后 Esc。不要输入个人信息。</p>
+<button data-prefix-step="0">1. A 末尾</button>
+<button data-prefix-step="1">2. B 末尾</button>
+<button data-prefix-step="2">3. 回到 A 末尾</button>
+<button data-prefix-step="3">4. A 开头</button>
+<button data-prefix-step="4">5. 清空 A</button>
+<button data-prefix-step="5">6. B 末尾不变</button>
+</div>
+<div id="eventControls" hidden>
+<p>通知测试：切到字流中文模式；第 0 步后按 n、Esc。其余步骤依次点击，间隔约 1 秒。
+仅第 7 步按一次 Backspace，第 8 步按一次 Ctrl+Z；其他步骤不要打字。最后导出。</p>
+<button data-event-step="0">0. A 末尾：按 n、Esc</button>
+<button data-event-step="1">1. 切到同内容 B</button>
+<button data-event-step="2">2. 返回 A</button>
+<button data-event-step="3">3. A 光标移到开头</button>
+<button data-event-step="4">4. A 选择前五个字符</button>
+<button data-event-step="5">5. 程序清空 A</button>
+<button data-event-step="6">6. 程序恢复 A</button>
+<button data-event-step="7">7. A 末尾：按 Backspace</button>
+<button data-event-step="8">8. 保持 A：按 Ctrl+Z</button>
+<button data-event-step="9">9. 切回 B，不打字</button>
+</div>
+<div id="shadowControls" hidden>
+<p>Context shadow diagnostic only; no production field identity is asserted. Each case uses identical synthetic A/B text. Click a case, wait at least 2 seconds and for this page to show F8 ready, then press F8. Wait at least 2 seconds after the last F8 and for this page to show F9 ready before pressing F9. Case 5: after F8 manually press Backspace, then Ctrl+Z before F9. Case 6: press F8 twice, then wait 2 seconds and press F9. Do not type text. Native diagnostic logs, not this page, determine results.</p>
+<p id="shadowStatus" role="status" aria-live="polite">Choose a case to begin.</p>
+<button data-shadow-case="0" type="button">Case 0: A unchanged</button>
+<button data-shadow-case="1" type="button">Case 1: A to B, stay</button>
+<button data-shadow-case="2" type="button">Case 2: A to B to A</button>
+<button data-shadow-case="3" type="button">Case 3: caret start to end</button>
+<button data-shadow-case="4" type="button">Case 4: program clear to restore</button>
+<button data-shadow-case="5" type="button">Case 5: user Backspace then Ctrl+Z</button>
+<button data-shadow-case="6" type="button">Case 6: supersession, press F8 twice</button>
+<button data-shadow-case="7" type="button" hidden>Case 7: same-length wrong prefix, expect denied</button>
+</div>
+<script>
+"use strict";
+const query = new URLSearchParams(location.search);
+const uiaLifecycleProbe = query.has("uiaLifecycleProbe");
+if (uiaLifecycleProbe) {
+  const allowed = new Set(["uiaLifecycleProbe"]);
+  if (location.protocol !== "file:" || query.get("uiaLifecycleProbe") !== "1" ||
+      query.getAll("uiaLifecycleProbe").length !== 1 ||
+      [...query.keys()].some(key => !allowed.has(key))) {
+    throw new Error("uiaLifecycleProbe requires the isolated local URL ?uiaLifecycleProbe=1");
+  }
+  // Keep this fixture-only branch separate from every other probe/export mode.
+  const storageKey = "ziliu.test-only.uia-lifecycle.v1";
+  const controls = document.createElement("section");
+  controls.id = "uiaLifecycleControls";
+  controls.innerHTML = `<h2>UIA 生命周期手动测试（仅本地合成页面）</h2>
+    <p>全程不输入文字、不按功能键、不需要 F/End。原生采集开始后，请在 60 秒内：手动点击 A、B、A（各停留约 2 秒）；点击“替换 A DOM 节点”；手动点击新 A（停留约 3 秒）；在页面空白处按浏览器刷新；刷新后手动点击 A（停留约 3 秒）；导出 JSON。页面标题始终固定。生命周期元数据仅关联本测试页事件，不代表生产来源或字段身份。</p>
+    <p>开始或重置会清除本测试专用的同标签页会话；仅自动保留一次刷新前后的元数据。不要与其他探测模式混用。</p>
+    <p id="uiaLifecycleStatus" role="status" aria-live="polite"></p>
+    <button id="uiaLifecycleStart" type="button">开始 / 重置本次测试</button>
+    <button id="uiaLifecycleReplace" type="button" disabled>替换 A DOM 节点（随后请手动点击新 A）</button>
+    <button id="uiaLifecycleExport" type="button" disabled>导出生命周期元数据 JSON</button>`;
+  document.body.append(controls);
+  for (const field of document.querySelectorAll("textarea,input")) {
+    if (field.id !== "ordinary" && field.id !== "ordinarySecond") {
+      const label = field.closest("label");
+      label.hidden = true;
+      label.style.display = "none";
+    }
+  }
+  document.getElementById("export").hidden = true;
+  const aLabel = document.getElementById("ordinary").closest("label");
+  const bLabel = document.getElementById("ordinarySecond").closest("label");
+  aLabel.firstChild.textContent = "A（普通多行文本框）";
+  bLabel.firstChild.textContent = "B（普通多行文本框）";
+  const status = document.getElementById("uiaLifecycleStatus");
+  const start = document.getElementById("uiaLifecycleStart");
+  const replace = document.getElementById("uiaLifecycleReplace");
+  const exportButton = document.getElementById("uiaLifecycleExport");
+  const cap = 128;
+  const eventTypes = new Set(["focus", "blur", "node-replaced", "replacement-ready", "page-load", "pagehide"]);
+  const validToken = value => typeof value === "string" && /^[0-9a-f]{32}$/.test(value);
+  const newToken = () => {
+    const bytes = new Uint8Array(16);
+    if (globalThis.crypto?.getRandomValues) crypto.getRandomValues(bytes);
+    else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+    return [...bytes].map(byte => byte.toString(16).padStart(2, "0")).join("");
+  };
+  let storage = null;
+  let storageError = "";
+  try { storage = window.sessionStorage; } catch { storageError = "sessionStorage 不可用；刷新保留无法保证。"; }
+  let run = null;
+  let exportableRun = null;
+  let storageReady = Boolean(storage);
+  let recoveryError = "";
+  if (storage) {
+    try {
+      const saved = storage.getItem(storageKey);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (!parsed || parsed.schema !== 1 || !Array.isArray(parsed.events) ||
+            parsed.events.length > cap || !Number.isInteger(parsed.dropped) || parsed.dropped < 0 ||
+            !Number.isInteger(parsed.refreshCount) || parsed.refreshCount < 0 || parsed.refreshCount > 1 ||
+            !validToken(parsed.runToken) || !validToken(parsed.documentToken) || typeof parsed.replacedA !== "boolean" ||
+            typeof parsed.hadStorageError !== "boolean") {
+          throw new Error("会话结构无效");
+        }
+        if (parsed.lastPagehideUtc !== null && (typeof parsed.lastPagehideUtc !== "string" ||
+            Number.isNaN(Date.parse(parsed.lastPagehideUtc)))) throw new Error("页面离开元数据无效");
+        const safeEvents = parsed.events.map(event => {
+          if (!event || !eventTypes.has(event.type) || typeof event.utc !== "string" ||
+              Number.isNaN(Date.parse(event.utc)) || !validToken(event.documentToken)) throw new Error("事件结构无效");
+          const safe = {type: event.type, utc: new Date(event.utc).toISOString(), documentToken: event.documentToken};
+          if (event.fixtureField !== undefined || event.nodeGeneration !== undefined) {
+            if (!(["A", "B"].includes(event.fixtureField)) || !Number.isInteger(event.nodeGeneration) || event.nodeGeneration < 1) {
+              throw new Error("字段元数据无效");
+            }
+            safe.fixtureField = event.fixtureField;
+            safe.nodeGeneration = event.nodeGeneration;
+          }
+          return safe;
+        });
+        exportableRun = {schema: 1, testOnly: true, fixtureOnly: true, runToken: parsed.runToken,
+          documentToken: parsed.documentToken, refreshCount: parsed.refreshCount,
+          replacedA: parsed.replacedA, hadStorageError: parsed.hadStorageError, dropped: parsed.dropped,
+          lastPagehideUtc: parsed.lastPagehideUtc ? new Date(parsed.lastPagehideUtc).toISOString() : null,
+          events: safeEvents};
+        let navigationIsReload = false;
+        try { navigationIsReload = performance.getEntriesByType("navigation")[0]?.type === "reload"; } catch { /* require reset when unavailable */ }
+        if (parsed.refreshCount === 0 && parsed.lastPagehideUtc && navigationIsReload) {
+          run = exportableRun;
+          run.refreshCount = 1;
+          run.documentToken = newToken();
+          appendEvent(run, "page-load");
+          save();
+          status.textContent = "已保留上次同标签页会话（一次刷新）；可继续手动操作或显式重置。";
+        } else {
+          recoveryError = "发现旧会话或已用完一次刷新保留。可导出旧元数据；点击“开始 / 重置”会明确开始新测试。";
+        }
+      }
+    } catch (error) {
+      recoveryError = "保存的会话损坏或无法读取（" + String(error?.message || error) + "）。点击“开始 / 重置”清除此测试专用数据。";
+    }
+  }
+  function save() {
+    if (!storage || !run) return;
+    try { storage.setItem(storageKey, JSON.stringify(run)); storageReady = true; }
+    catch (error) {
+      storageReady = false;
+      storageError = "sessionStorage 写入失败：" + String(error?.message || error);
+      run.hadStorageError = true;
+      status.textContent = storageError;
+    }
+  }
+  function appendEvent(target, type, field) {
+    const utc = new Date().toISOString();
+    if (type === "pagehide") target.lastPagehideUtc = utc;
+    if (target.events.length >= cap) target.dropped++;
+    else target.events.push({type, utc, documentToken: target.documentToken,
+      ...(field ? {fixtureField: field.dataset.fixtureField, nodeGeneration: Number(field.dataset.generation)} : {})});
+  }
+  function record(type, field) {
+    if (!run) return;
+    appendEvent(run, type, field);
+    save();
+  }
+  function bind(field, fixtureField, generation) {
+    field.dataset.fixtureField = fixtureField;
+    field.dataset.generation = String(generation);
+    for (const type of ["focus", "blur"]) field.addEventListener(type, () => record(type, field));
+  }
+  bind(document.getElementById("ordinary"), "A", 1);
+  bind(document.getElementById("ordinarySecond"), "B", 1);
+  start.addEventListener("click", () => {
+    run = {schema: 1, testOnly: true, fixtureOnly: true, runToken: newToken(),
+      documentToken: newToken(), refreshCount: 0, replacedA: false, dropped: 0,
+      lastPagehideUtc: null, hadStorageError: false, events: []};
+    exportableRun = run;
+    storageReady = Boolean(storage); recoveryError = ""; storageError = storage ? "" : storageError;
+    if (storage) {
+      try { storage.removeItem(storageKey); }
+      catch (error) {
+        storageReady = false;
+        storageError = "无法清理旧会话：" + String(error?.message || error);
+        run.hadStorageError = true;
+      }
+    }
+    record("page-load");
+    replace.disabled = false; exportButton.disabled = false;
+    status.textContent = storageError || "测试已开始。按上方步骤手动依次点击 A → B → A；请在替换后手动聚焦新 A。";
+  });
+  replace.addEventListener("click", () => {
+    if (!run || run.replacedA) return;
+    const old = document.getElementById("ordinary");
+    const replacement = document.createElement("textarea");
+    replacement.id = "ordinary"; replacement.rows = 2;
+    record("node-replaced", old);
+    old.replaceWith(replacement);
+    bind(replacement, "A", Number(old.dataset.generation) + 1);
+    run.replacedA = true;
+    record("replacement-ready", replacement);
+    status.textContent = storageError || "A 已替换为同 ID/类型、空值的新 DOM 节点；现在请手动点击新 A（页面没有自动聚焦）。";
+  });
+  window.addEventListener("pagehide", () => record("pagehide"));
+  exportButton.addEventListener("click", () => {
+    const data = run || exportableRun;
+    if (!data) return;
+    const result = {testOnly: true, fixtureOnly: true, scope: "synthetic fixture event correlation only; not production origin or field identity",
+      runToken: data.runToken, currentDocumentToken: data.documentToken,
+      refreshCount: data.refreshCount, replacedA: data.replacedA, cap, dropped: data.dropped,
+      hadStorageError: Boolean(data.hadStorageError || storageError),
+      manualResult: data.hadStorageError || storageError ? "FAIL" : "not-evaluated",
+      lastPagehideUtc: data.lastPagehideUtc,
+      storageError: storageError || null, events: data.events};
+    const blob = new Blob([JSON.stringify(result, null, 2) + "\n"], {type: "application/json"});
+    const link = Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: "ziliu-uia-lifecycle-metadata.json"});
+    link.click(); URL.revokeObjectURL(link.href);
+  });
+  if (exportableRun) exportButton.disabled = false;
+  if (exportableRun?.hadStorageError && !recoveryError) recoveryError = "此会话曾发生存储故障，手动结果必须判 FAIL；可导出或显式重置。";
+  if (recoveryError || storageError) status.textContent = recoveryError || storageError;
+  start.disabled = !storage;
+  if (!storage) status.textContent = storageError + "本次模式已禁用，无法满足刷新保留要求。";
+} else {
+const fields = [...document.querySelectorAll("textarea,input")];
+// Titles label a manually controlled fixture, not an origin or field identity.
+const sessionProbe = location.protocol === "file:" && query.has("sessionProbe");
+const sessionFollowup = location.protocol === "file:" && query.has("sessionFollowup");
+const freshProbe = location.protocol === "file:" && query.has("freshProbe");
+const shadowProbe = freshProbe || (location.protocol === "file:" && query.has("shadowProbe"));
+const prefixProbe = location.protocol === "file:" && query.has("prefixProbe");
+const eventProbe = sessionProbe || (location.protocol === "file:" && query.has("eventProbe"));
+if (query.has("sessionFollowup") && !sessionProbe) {
+  throw new Error("sessionFollowup requires sessionProbe");
+}
+if (sessionProbe && (shadowProbe || prefixProbe || query.has("eventProbe"))) {
+  throw new Error("sessionProbe must run alone");
+}
+if (!shadowProbe && !eventProbe && location.protocol === "file:" && (query.has("scopeProbe") || prefixProbe)) {
+  for (const field of fields) {
+    field.addEventListener("focus", () => {
+      const ordinary = field.id === "ordinary" || field.id === "ordinarySecond";
+      document.title = (prefixProbe && ordinary ? "Ziliu SYNTHETIC PREFIX [" : "Ziliu CONTEXT METADATA [") + field.id + "]";
+    });
+    field.addEventListener("blur", () => { document.title = "Ziliu TEST ONLY - local input fields"; });
+  }
+}
+const events = new Map(fields.map(field => [field.id, []]));
+const prefixSteps = [];
+if (prefixProbe && !eventProbe && !shadowProbe) {
+  const a = document.getElementById("ordinary");
+  const b = document.getElementById("ordinarySecond");
+  a.value = "Ziliu synthetic context probe A. No personal information.";
+  b.value = "Ziliu synthetic context probe B. No personal information.";
+  document.getElementById("prefixControls").hidden = false;
+  for (const button of document.querySelectorAll("[data-prefix-step]")) {
+    button.addEventListener("click", () => {
+      const step = Number(button.dataset.prefixStep);
+      const field = step === 1 || step === 5 ? b : a;
+      if (step === 4) field.value = "";
+      field.focus();
+      const caret = step === 3 ? 0 : field.value.length;
+      field.setSelectionRange(caret, caret);
+      prefixSteps.push({step, field: field.id, caret, timestamp: new Date().toISOString()});
+    });
+  }
+}
+const eventSteps = [];
+const domEvents = [];
+let eventStep = -1;
+const eventState = field => ({field: field.id, length: field.value.length,
+  selectionStart: field.selectionStart, selectionEnd: field.selectionEnd});
+if (eventProbe && !shadowProbe && !sessionProbe) {
+  const a = document.getElementById("ordinary");
+  const b = document.getElementById("ordinarySecond");
+  const fixed = "Ziliu synthetic context probe A. No personal information.";
+  a.value = b.value = fixed; // Deliberately identical: content cannot identify the field.
+  document.getElementById("eventControls").hidden = false;
+  for (const button of document.querySelectorAll("[data-event-step]")) {
+    // Avoid button focus introducing a false intermediate field transition.
+    button.addEventListener("mousedown", event => event.preventDefault());
+    button.addEventListener("click", () => {
+      eventStep = Number(button.dataset.eventStep);
+      document.title = "Ziliu CONTEXT EVENTS [" + eventStep + "]";
+      const field = eventStep === 1 || eventStep === 9 ? b : a;
+      const before = {utcMs: Date.now(), ...eventState(field)};
+      field.focus();
+      if (eventStep === 5) field.value = "";
+      if (eventStep === 6) field.value = fixed;
+      if (eventStep === 3) field.setSelectionRange(0, 0);
+      else if (eventStep === 4) field.setSelectionRange(0, 5);
+      else if (eventStep !== 8) field.setSelectionRange(field.value.length, field.value.length);
+      eventSteps.push({step: eventStep, before, after: {utcMs: Date.now(), ...eventState(field)}});
+    });
+  }
+  for (const field of [a, b]) {
+    for (const type of ["focus", "blur", "select", "input", "compositionstart", "compositionend"]) {
+      field.addEventListener(type, () => {
+        if (domEvents.length < 128) domEvents.push({type, step: eventStep, utcMs: Date.now(), ...eventState(field)});
+      });
+    }
+  }
+  document.addEventListener("selectionchange", () => {
+    const field = document.activeElement;
+    if ((field === a || field === b) && domEvents.length < 128)
+      domEvents.push({type: "selectionchange", step: eventStep, utcMs: Date.now(), ...eventState(field)});
+  });
+}
+if (sessionProbe) {
+  const a = document.getElementById("ordinary");
+  const b = document.getElementById("ordinarySecond");
+  const fixed = "Ziliu synthetic context probe A. No personal information.";
+  a.value = b.value = fixed;
+  for (const field of fields) if (field !== a && field !== b) field.closest("label").hidden = true;
+  a.setSelectionRange(fixed.length, fixed.length);
+  b.setSelectionRange(fixed.length, fixed.length);
+  // Constant range label only. Never use it as field identity or an origin check.
+  document.title = "Ziliu CONTEXT EVENTS [0]";
+  document.getElementById("sessionControls").hidden = false;
+  const status = document.getElementById("sessionStatus");
+  const next = document.getElementById("sessionNext");
+  const steps = [
+    "0. 点击 Ordinary (A)，按 End，再按 n、Esc，等待候选消失。",
+    "1. A 中按 Tab 切到 Second ordinary (B)，按 End，停留一秒；不要打字。",
+    "2. B 中按 Shift+Tab 返回 A，按 End，停留一秒；不要打字。",
+    "3. 鼠标点击 B，按 End；再点击 A，按 End；不要打字。",
+    "4. 在 A 逐键输入 n i h a o，不选词，看到候选后按 Esc。",
+    "5. 在 A 按 Home、End、Backspace、Ctrl+Z，停留一秒。",
+    "6. 鼠标点击 B，按 End，逐键输入 n i h a o，按 Esc。"
+  ];
+  const followupSteps = [
+    "0. 鼠标依次点击 A、B、A，每处按 Ctrl+A，松开后按右方向键到末尾；每处停留一秒，不打字。",
+    "1. 在 A 逐键输入 n i h a o，看到候选框后按 Esc。",
+    "2. 在 A 按 Ctrl+A，松开后按左方向键到开头；再 Ctrl+A，松开后按右方向键到末尾；最后 Backspace、Ctrl+Z。",
+    "3. 鼠标点击 B，按 Ctrl+A，松开后按右方向键到末尾；逐键输入 n i h a o，看到候选框后按 Esc。"
+  ];
+  const activeSteps = sessionFollowup ? followupSteps : steps;
+  let stage = 0;
+  let dropped = 0;
+  let complete = false;
+  const records = [];
+  const cap = 256;
+  const state = field => ({...eventState(field), matchesFixed: field.value === fixed});
+  const stamp = (action, field, extra = {}) => {
+    if (records.length >= cap) { dropped++; return; }
+    records.push({action, stage, utcMs: Date.now(), ...(field ? state(field) : {}), ...extra});
+  };
+  status.textContent = activeSteps[stage];
+  // Clicking the progress button must not blur the field and manufacture a boundary.
+  next.addEventListener("mousedown", event => event.preventDefault());
+  next.addEventListener("click", () => {
+    if (complete) return;
+    const field = document.activeElement;
+    stamp("step-finished", field === a || field === b ? field : null);
+    if (stage === activeSteps.length - 1) {
+      complete = true; next.disabled = true;
+      status.textContent = "操作记录完成。点击 Export synthetic results；原生日志仍须独立判定，不代表测试通过。";
+    } else {
+      stage++; status.textContent = activeSteps[stage];
+      stamp("step-ready", field === a || field === b ? field : null);
+    }
+  });
+  for (const field of [a, b]) {
+    for (const type of ["focus", "blur", "select", "input", "compositionstart", "compositionupdate", "compositionend"]) {
+      field.addEventListener(type, event => stamp(type, field, {
+        ...(type === "input" ? {inputType: event.inputType || ""} : {}),
+        ...(type.startsWith("composition") ? {compositionLength: (event.data || "").length} : {})
+      }));
+    }
+    field.addEventListener("keydown", event => {
+      if (sessionFollowup && (event.repeat || ["Control", "Shift", "Alt", "Meta"].includes(event.key))) return;
+      const key = event.ctrlKey && event.key.toLowerCase() === "a" ? "Ctrl+A"
+        : event.ctrlKey && event.key.toLowerCase() === "z" ? "Ctrl+Z"
+        : event.ctrlKey && event.key === "ArrowLeft" ? "Ctrl+ArrowLeft"
+        : event.ctrlKey && event.key === "ArrowRight" ? "Ctrl+ArrowRight"
+        : event.key === "ArrowLeft" || event.key === "ArrowRight" ? event.key
+        : event.shiftKey && event.key === "Tab" ? "Shift+Tab" : event.key;
+      const permitted = sessionFollowup
+        ? ["Ctrl+A", "Ctrl+Z", "ArrowLeft", "ArrowRight", "Ctrl+ArrowLeft", "Ctrl+ArrowRight", "Backspace", "Escape", "n", "i", "h", "a", "o", "Process"]
+        : ["Tab", "Shift+Tab", "Home", "End", "Backspace", "Ctrl+Z", "Escape", "n", "i", "h", "a", "o", "Process"];
+      stamp("keydown", field, {key: permitted.includes(key) ? key : "other", isComposing: event.isComposing});
+    });
+    if (sessionFollowup) field.addEventListener("pointerdown", () => stamp("pointerdown", field));
+  }
+  document.addEventListener("selectionchange", () => {
+    const field = document.activeElement;
+    if (field === a || field === b) stamp("selectionchange", field);
+  });
+  stamp("fixture-ready", null);
+  document.getElementById("export").addEventListener("click", event => {
+    event.stopImmediatePropagation();
+    const result = {testOnly: true, sessionProbe: true, sessionFollowup,
+      complete, dropped,
+      constantTitle: document.title === "Ziliu CONTEXT EVENTS [0]", records,
+      fields: sessionFollowup
+        ? [a, b].map(field => ({field: field.id, length: field.value.length,
+            selectionStart: field.selectionStart, selectionEnd: field.selectionEnd}))
+        : [a, b].map(state)};
+    const blob = new Blob([JSON.stringify(result, null, 2) + "\n"], {type: "application/json"});
+    const link = Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: sessionFollowup ? "ziliu-context-session-followup.json" : "ziliu-context-session.json"});
+    link.click(); URL.revokeObjectURL(link.href);
+  }, true);
+}
+if (shadowProbe) {
+  const a = document.getElementById("ordinary");
+  const b = document.getElementById("ordinarySecond");
+  const fixed = "Ziliu synthetic context probe A. No personal information.";
+  a.value = b.value = fixed;
+  const controls = document.getElementById("shadowControls");
+  const status = document.getElementById("shadowStatus");
+  controls.hidden = false;
+  if (freshProbe) {
+    controls.querySelector("p").textContent = "固定前文重读测试（仅测试页，不验证永久字段身份）：按 Case 0–7 顺序操作。每项点击后等 F8 ready，按 F8，再等 F9 ready 后按 F9。只有 Case 6 按两次 F8；其余不需编辑。Case 5/7 预期拒绝发起，仍按 F9 结束并导出证据。不要输入个人信息。";
+    controls.querySelector('[data-shadow-case="3"]').textContent = "Case 3: 光标留在开头（重读不匹配）";
+    controls.querySelector('[data-shadow-case="4"]').textContent = "Case 4: 清空后保持空白（重读不匹配）";
+    controls.querySelector('[data-shadow-case="5"]').textContent = "Case 5: 初始非空选区（拒绝读取）";
+    controls.querySelector('[data-shadow-case="7"]').hidden = false;
+  }
+  const records = [];
+  const timers = new Set();
+  let pending = false;
+  let activeCase = null;
+  let armedAt = null;
+  let f8Count = 0;
+  let startedAt = 0;
+  let readinessTimer = null;
+  const cap = 256;
+  const stamp = (action, field, key) => {
+    if (records.length >= cap) return;
+    const entry = {action, utcMs: Date.now()};
+    if (activeCase !== null) entry.case = activeCase;
+    if (field) {
+      entry.fieldId = field.id;
+      entry.length = field.value.length;
+      entry.selectionStart = field.selectionStart;
+      entry.selectionEnd = field.selectionEnd;
+    }
+    if (key) entry.keyCode = key;
+    records.push(entry);
+  };
+  const later = (delay, action) => {
+    const timer = setTimeout(() => { timers.delete(timer); if (pending) action(); }, delay);
+    timers.add(timer);
+    return timer;
+  };
+  const focusAt = (field, position) => {
+    field.focus(); field.setSelectionRange(position, position); stamp("scheduled-action", field);
+  };
+  const buttons = [...controls.querySelectorAll("[data-shadow-case]")];
+  for (const button of buttons) {
+    button.addEventListener("mousedown", event => event.preventDefault());
+    button.addEventListener("click", () => {
+      if (pending) return;
+      activeCase = Number(button.dataset.shadowCase);
+      pending = true; f8Count = 0; armedAt = null; startedAt = Date.now();
+      a.value = b.value = fixed;
+      if (freshProbe && activeCase === 7) a.value = fixed.replace("probe A.", "probe B.");
+      focusAt(a, a.value.length);
+      if (freshProbe && activeCase === 5) {
+        a.setSelectionRange(0, 5);
+        stamp("scheduled-selection", a);
+      }
+      stamp("case-ready", a);
+      for (const control of buttons) control.disabled = true;
+      document.title = (freshProbe ? "Ziliu CONTEXT FRESH [" : "Ziliu CONTEXT SHADOW [") + activeCase + "]";
+      status.textContent = "Case " + activeCase + " selected. Wait 2 seconds for F8 readiness; wait 2 seconds after the last F8 for F9 readiness.";
+      later(2000, () => { status.textContent = "F8 ready for case " + activeCase + "."; });
+    });
+  }
+  document.addEventListener("keydown", event => {
+    const target = document.activeElement;
+    if (!pending || (target !== a && target !== b) || !["F8", "F9", "Backspace", "z", "Z"].includes(event.key)) return;
+    if (event.key === "F8" || event.key === "F9") event.preventDefault();
+    if (event.repeat) return;
+    if (event.key === "F8") {
+      if (Date.now() - startedAt < 2000) {
+        stamp("early-f8", target, "F8");
+        status.textContent = "Early F8 may have armed native state. Do not press F9; click a case again and restart this trial.";
+        pending = false; activeCase = null;
+        for (const timer of timers) clearTimeout(timer);
+        timers.clear(); readinessTimer = null;
+        for (const control of buttons) control.disabled = false;
+        return;
+      }
+      if (f8Count > 0 && activeCase !== 6) return;
+      if (f8Count >= (activeCase === 6 ? 2 : 1)) return;
+      f8Count++; armedAt = Date.now();
+      stamp("key", target, "F8");
+      if (readinessTimer !== null) { clearTimeout(readinessTimer); timers.delete(readinessTimer); }
+      status.textContent = activeCase === 6 && f8Count === 1
+        ? "First F8 recorded. Press the second F8, then wait 2 seconds for F9 readiness."
+        : "F8 recorded. Wait 2 seconds after the last F8 for F9 readiness.";
+      readinessTimer = later(2000, () => {
+        status.textContent = activeCase === 6 && f8Count === 1
+          ? "First F8 is ready; press the second F8, then wait 2 seconds for F9 readiness."
+          : "F9 ready for case " + activeCase + ".";
+        readinessTimer = null;
+      });
+      if (f8Count === 1) {
+        if (activeCase === 1) later(400, () => focusAt(b, b.value.length));
+        if (activeCase === 2) { later(400, () => focusAt(b, b.value.length)); later(800, () => focusAt(a, a.value.length)); }
+        if (activeCase === 3) {
+          later(400, () => focusAt(a, 0));
+          if (!freshProbe) later(800, () => focusAt(a, a.value.length));
+        }
+        if (activeCase === 4) {
+          later(400, () => { a.value = ""; focusAt(a, 0); });
+          if (!freshProbe) later(800, () => { a.value = fixed; focusAt(a, a.value.length); });
+        }
+      }
+    } else if (event.key === "F9") {
+      stamp("key", target, "F9");
+      if (!f8Count || Date.now() - armedAt < 2000 || Date.now() - startedAt < 2000 || (activeCase === 6 && f8Count !== 2)) {
+        stamp("premature-f9", target, "F9");
+        status.textContent = activeCase === 6 && f8Count !== 2 ? "Case 6 needs its second F8 before F9." : "F9 was early; wait until F9 ready is shown, then retry.";
+        return;
+      }
+      stamp("case-finished", target);
+      pending = false; activeCase = null;
+      for (const control of buttons) control.disabled = false;
+      status.textContent = "Case finished. Native diagnostic logs determine the result.";
+      document.title = "Ziliu TEST ONLY - local input fields";
+    } else if (!freshProbe && activeCase === 5 && (event.key === "Backspace" || ((event.ctrlKey || event.metaKey) && (event.key === "z" || event.key === "Z")))) {
+      // Record only the permitted key code; allow native undo/edit behavior.
+      stamp("key", target, event.key === "Backspace" ? "Backspace" : "Ctrl+Z");
+    }
+  }, true);
+  for (const field of [a, b]) {
+    for (const type of ["focus", "blur", "input", "select"]) {
+      field.addEventListener(type, () => { if (pending) stamp("dom-" + type, field); });
+    }
+  }
+  document.addEventListener("selectionchange", () => {
+    const field = document.activeElement;
+    if (pending && (field === a || field === b)) stamp("dom-selectionchange", field);
+  });
+  document.querySelector("#export").addEventListener("click", event => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const blob = new Blob([JSON.stringify({testOnly: true, shadowProbe: true, freshProbe, records}, null, 2) + "\n"], {type: "application/json"});
+    const link = Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: freshProbe ? "ziliu-context-fresh.json" : "ziliu-context-shadow.json"});
+    link.click(); URL.revokeObjectURL(link.href);
+  }, true);
+  window.addEventListener("pagehide", () => { for (const timer of timers) clearTimeout(timer); timers.clear(); readinessTimer = null; pending = false; });
+}
+for (const field of fields) {
+  for (const type of ["compositionstart", "compositionupdate", "compositionend", "input"]) {
+    field.addEventListener(type, event => { if (!eventProbe && !shadowProbe) events.get(field.id).push({type, data: event.data ?? ""}); });
+  }
+}
+const codepoints = text => Array.from(text, character => "U+" + character.codePointAt(0).toString(16).toUpperCase().padStart(4, "0"));
+document.querySelector("#export").addEventListener("click", () => {
+  if (shadowProbe) return;
+  const result = eventProbe
+    ? {testOnly: true, eventProbe: true, eventSteps, domEvents, fields: fields.filter(f => f.type !== "password").map(eventState)}
+    : {testOnly: true, prefixProbe, prefixSteps, fields: fields.map(field => ({id: field.id, value: field.value, codepoints: codepoints(field.value), events: events.get(field.id)}))};
+  const blob = new Blob([JSON.stringify(result, null, 2) + "\n"], {type: "application/json"});
+  const link = Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: eventProbe ? "ziliu-context-events.json" : "ziliu-alpha-input-fields.json"});
+  link.click();
+  URL.revokeObjectURL(link.href);
+});
+}
+</script>

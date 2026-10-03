@@ -1,0 +1,45 @@
+# Build output
+/build/
+/out/
+/.cache/
+/.vs/
+/CMakeUserPresets.json
+
+# Visual Studio
+*.VC.db
+*.VC.VC.opendb
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Compiler output
+*.obj
+*.pch
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe
+/src/settings/Generated Files/
+/src/settings/obj/
+
+# Runtime and local state
+*.log
+*.userdb/
+/artifacts/
+
+# Private migration/recovery material must never enter this source mirror.
+/.local-recovery/
+*.pem
+*.key
+.env
+.env.*
+__pycache__/
+
+/AGENTS.md
+/HANDOFF.md
+/.agents/
+/.codex/
+/.codegraph/
