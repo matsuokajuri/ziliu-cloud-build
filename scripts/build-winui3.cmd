@@ -5,8 +5,17 @@ if not defined ZILIU_WINDOWS_SDK_VERSION set "ZILIU_WINDOWS_SDK_VERSION=10.0.280
 if not defined ZILIU_NUGET_SOURCES set "ZILIU_NUGET_SOURCES=https://api.nuget.org/v3/index.json"
 
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+rem Read a file rather than invoking a nested cmd parser on a path with spaces.
+set "VSWHERE_OUTPUT=%TEMP%\ziliu-vswhere-%RANDOM%-%RANDOM%.txt"
+"%VSWHERE%" -latest -products * -version "[18.0,19.0)" -property installationPath > "%VSWHERE_OUTPUT%"
+if errorlevel 1 (
+  del /q "%VSWHERE_OUTPUT%" 2>nul
+  echo Visual Studio discovery failed.
+  exit /b 1
+)
 set "VS_INSTALL="
-for /f "usebackq tokens=*" %%I in (`"%VSWHERE%" -latest -products * -version "[18.0,19.0)" -property installationPath`) do set "VS_INSTALL=%%I"
+for /f "usebackq tokens=*" %%I in ("%VSWHERE_OUTPUT%") do set "VS_INSTALL=%%I"
+del /q "%VSWHERE_OUTPUT%" 2>nul
 if not defined VS_INSTALL exit /b 1
 
 set "CONFIGURATION=%~1"

@@ -20,10 +20,19 @@ if not exist "%VSWHERE%" (
   exit /b 1
 )
 
+rem Read a file rather than invoking a nested cmd parser on a path with spaces.
+set "VSWHERE_OUTPUT=%TEMP%\ziliu-vswhere-%RANDOM%-%RANDOM%.txt"
+"%VSWHERE%" -latest -products * -version "[18.0,19.0)" -property installationPath > "%VSWHERE_OUTPUT%"
+if errorlevel 1 (
+  del /q "%VSWHERE_OUTPUT%" 2>nul
+  echo Visual Studio discovery failed.
+  exit /b 1
+)
 set "VS_INSTALL="
-for /f "usebackq tokens=*" %%I in (`""%VSWHERE%" -latest -products * -version "[18.0,19.0)" -property installationPath"`) do (
+for /f "usebackq tokens=*" %%I in ("%VSWHERE_OUTPUT%") do (
   set "VS_INSTALL=%%I"
 )
+del /q "%VSWHERE_OUTPUT%" 2>nul
 
 if not defined VS_INSTALL (
   echo Visual Studio was not found.
