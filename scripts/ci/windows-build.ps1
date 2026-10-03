@@ -87,6 +87,11 @@ try {
     Assert-Exit 'CTest enumeration'
     & ctest --test-dir $build --output-on-failure --no-tests=error --output-junit (Join-Path $evidence 'ctest.xml')
     $testExit = $LASTEXITCODE
+    if ($testExit -ne 0) {
+        & python scripts/ci/describe-rime-cache.py (Join-Path $build 'test-state/rime-v3') `
+            (Join-Path $evidence 'rime-cache-fingerprints.json')
+        Assert-Exit 'Read-only Rime cache diagnostics'
+    }
     & python scripts/ci/assert-ctest.py (Join-Path $evidence 'ctest-plan.json') (Join-Path $evidence 'ctest.xml')
     Assert-Exit 'Zero-skip CTest gate'
     if ($testExit -ne 0) { throw "CTest failed: $testExit" }
