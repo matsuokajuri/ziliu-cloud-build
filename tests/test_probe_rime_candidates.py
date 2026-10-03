@@ -37,9 +37,17 @@ class ProbeRimeCandidatesTests(unittest.TestCase):
             build = root / "build"
             output_root = build / "contextual-ranking-pilot"
             valid = PROBE.validate_run_dir(output_root / "run-1", output_root, build)
-            self.assertEqual(valid, output_root / "run-1")
+            # The validator returns a canonical path. Windows TEMP can expose
+            # an 8.3 alias (RUNNER~1) that resolve() expands to the same directory.
+            self.assertEqual(valid, (output_root / "run-1").resolve())
+            self.assertTrue(valid.is_absolute())
+            self.assertTrue(valid.is_relative_to(output_root.resolve()))
             with self.assertRaises(ValueError):
                 PROBE.validate_run_dir(root / "outside", output_root, build)
+            with self.assertRaises(ValueError):
+                PROBE.validate_run_dir(output_root, output_root, build)
+            with self.assertRaises(ValueError):
+                PROBE.validate_run_dir(output_root / ".." / "outside", output_root, build)
 
 
 if __name__ == "__main__":
