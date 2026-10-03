@@ -21,7 +21,7 @@ if not exist "%VSWHERE%" (
 )
 
 set "VS_INSTALL="
-for /f "usebackq tokens=*" %%I in (`"%VSWHERE%" -latest -products * -version "[18.0,19.0)" -property installationPath`) do (
+for /f "usebackq tokens=*" %%I in (`""%VSWHERE%" -latest -products * -version "[18.0,19.0)" -property installationPath"`) do (
   set "VS_INSTALL=%%I"
 )
 
