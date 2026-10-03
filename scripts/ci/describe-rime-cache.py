@@ -10,6 +10,7 @@ import json
 import os
 import re
 import stat
+import struct
 import sys
 import zlib
 from pathlib import Path
@@ -233,6 +234,18 @@ def describe_files(raw):
             else:
                 normalized[name] = data[:36] + b"\0" * 4 + data[40:]
                 entry["dictionary_crc32"] = int.from_bytes(data[32:36], "little")
+                if name == "melt_eng.prism.bin":
+                    fields = struct.unpack("<5I2i", data[32:60])
+                    entry["prism_header"] = dict(zip((
+                        "dictionary_crc32", "schema_crc32", "num_syllables",
+                        "num_spellings", "double_array_units",
+                        "double_array_relative_offset", "spelling_map_relative_offset"
+                    ), fields))
+                    entry["normalized_block_fingerprints"] = {
+                        "block_bytes": 4096,
+                        "sha256": [sha256(normalized[name][offset:offset + 4096])
+                                   for offset in range(0, len(data), 4096)]
+                    }
         else:
             normalized[name] = data
         if name in normalized:

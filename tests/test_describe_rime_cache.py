@@ -81,6 +81,11 @@ class CacheDiagnosticsTests(unittest.TestCase):
         self.assertEqual(result["files"][0]["timestamp_resource_keys"], ["alpha", "beta"])
         self.assertEqual(result["files"][0]["body_line_count"], 2)
         self.assertTrue(all(item["matches"] for item in result["prism_bindings"]))
+        melt = result["files"][1]
+        self.assertEqual(melt["prism_header"]["dictionary_crc32"], 97)
+        blocks = melt["normalized_block_fingerprints"]
+        self.assertEqual(blocks["block_bytes"], 4096)
+        self.assertEqual(blocks["sha256"], [melt["normalized_sha256"]])
         variants = result["hypothetical_yaml_variant_aggregates_NOT_ADMISSION"]
         self.assertEqual(result["normalized_aggregate_sha256"], variants["crlf_terminal_absent"])
         self.assertNotEqual(result["normalized_aggregate_sha256"], variants["lf_terminal_absent"])
@@ -99,6 +104,16 @@ class CacheDiagnosticsTests(unittest.TestCase):
         self.assertEqual(result["normalized_aggregate_sha256"], expected)
         self.assertNotIn("dictionary-data", json.dumps(result))
         self.assertNotIn("value: fixed", json.dumps(result))
+
+    def test_multiple_normalized_blocks(self):
+        raw = fixture()
+        raw["melt_eng.prism.bin"] += bytes(range(256)) * 40
+        result = DIAG.describe_files(raw)["files"][1]
+        blocks = result["normalized_block_fingerprints"]["sha256"]
+        self.assertEqual(len(blocks), 3)
+        data = raw["melt_eng.prism.bin"]
+        self.assertEqual(blocks[-1], DIAG.sha256(data[8192:]))
+        self.assertNotEqual(blocks[0], DIAG.sha256(data[:4096]))
 
     def test_prism_binding_and_header_fail_closed(self):
         for offset in (0, 20, 36):
