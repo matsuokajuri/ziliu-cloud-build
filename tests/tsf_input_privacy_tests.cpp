@@ -195,6 +195,7 @@ class Range final : public ITfRange {
 class Property final : public ITfReadOnlyProperty {
  public:
   IUnknown* scope = nullptr;
+  bool uniform_range = false;
   HRESULT result = S_OK;
   ULONG references = 1;
   STDMETHODIMP QueryInterface(REFIID id, void** out) override {
@@ -209,7 +210,7 @@ class Property final : public ITfReadOnlyProperty {
   STDMETHODIMP GetType(GUID*) override { return E_NOTIMPL; }
   STDMETHODIMP EnumRanges(TfEditCookie, IEnumTfRanges**, ITfRange*) override { return E_NOTIMPL; }
   STDMETHODIMP GetValue(TfEditCookie, ITfRange* range, VARIANT* value) override {
-    if (!static_cast<Range*>(range)->collapsed) {
+    if (!uniform_range && !static_cast<Range*>(range)->collapsed) {
       value->vt = VT_EMPTY;
       return S_FALSE;  // Simulate a selection containing multiple scope values.
     }
@@ -521,8 +522,52 @@ int main() {
          "interim-character range has no safe insertion point");
   context.interim_character = FALSE;
   context.active_end = TF_AE_NONE;
+  context.range.collapsed = false;
   Expect(privacy() == InputPrivacy::kBlocked,
-         "no active selection end rejects a nonempty selection");
+         "no active end rejects a nonempty selection with mixed scope values");
+  context.property.uniform_range = true;
+  const int selection_collapses = context.range.collapse_calls;
+  scope.values = {IS_SEARCH};
+  Expect(privacy() == InputPrivacy::kOrdinary,
+         "SearchHost nonempty NONE selection accepts its complete uniform search scope");
+  Expect(!context.range.collapsed && context.range.collapse_calls == selection_collapses,
+         "unknown active end queries the whole selection without collapsing to an assumed insertion point");
+  scope.values = {IS_PRIVATE};
+  Expect(privacy() == InputPrivacy::kRestricted,
+         "uniform private selection without active end retains restricted routing");
+  for (InputScope secret : {IS_PASSWORD, IS_NUMERIC_PIN, IS_ALPHANUMERIC_PIN}) {
+    scope.values = {IS_TEXT, secret};
+    Expect(privacy() == InputPrivacy::kBlocked,
+           "uniform no-active-end selection never routes a password or PIN scope");
+  }
+  scope.values = {IS_SEARCH};
+  for (HRESULT failure : {S_FALSE, E_FAIL}) {
+    context.property.result = failure;
+    Expect(privacy() == InputPrivacy::kBlocked,
+           "incomplete whole-selection property cannot authorize input");
+  }
+  context.property.result = S_OK;
+  for (HRESULT failure : {S_FALSE, E_FAIL}) {
+    scope.result = failure;
+    Expect(privacy() == InputPrivacy::kBlocked,
+           "incomplete whole-selection scope enumeration cannot authorize input");
+  }
+  scope.result = S_OK;
+  scope.malformed = true;
+  Expect(privacy() == InputPrivacy::kBlocked,
+         "malformed whole-selection scope array cannot authorize input");
+  scope.malformed = false;
+  context.property_present = false;
+  Expect(privacy() == InputPrivacy::kBlocked,
+         "missing whole-selection scope property cannot authorize input");
+  context.property_present = true;
+  context.interim_character = TRUE;
+  Expect(privacy() == InputPrivacy::kBlocked,
+         "uniform whole-selection scope does not authorize an interim character");
+  context.interim_character = FALSE;
+  Expect(context.range.get_text_calls == 0,
+         "no-active-end selection privacy checks never retrieve document text");
+  context.property.uniform_range = false;
   context.range.empty = true;
   context.range.collapsed = false;
   scope.values = {IS_SEARCH};

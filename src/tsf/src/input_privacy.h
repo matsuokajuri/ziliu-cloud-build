@@ -78,23 +78,24 @@ inline bool ContextBlocksInput(ITfContext* context, DWORD activation_flags) {
          CompartmentBlocksInput(manager.Get(), GUID_COMPARTMENT_EMPTYCONTEXT);
 }
 
-inline InputPrivacy ClassifyScopeValue(const VARIANT& value) {
+inline InputPrivacy ClassifyScopeValue(const VARIANT& value, bool require_complete = false) {
+  const auto unavailable = require_complete ? InputPrivacy::kBlocked : InputPrivacy::kRestricted;
   if (value.vt == VT_EMPTY) {
-    return InputPrivacy::kRestricted;
+    return unavailable;
   }
   if (value.vt != VT_UNKNOWN || value.punkVal == nullptr) {
-    return InputPrivacy::kRestricted;
+    return unavailable;
   }
   Microsoft::WRL::ComPtr<ITfInputScope> input_scope;
   if (FAILED(value.punkVal->QueryInterface(IID_PPV_ARGS(&input_scope)))) {
-    return InputPrivacy::kRestricted;
+    return unavailable;
   }
   InputScope* scopes = nullptr;
   UINT count = 0;
   const HRESULT result = input_scope->GetInputScopes(&scopes, &count);
-  if (FAILED(result) || count == 0 || scopes == nullptr) {
+  if (FAILED(result) || (require_complete && result != S_OK) || count == 0 || scopes == nullptr) {
     CoTaskMemFree(scopes);
-    return InputPrivacy::kRestricted;
+    return unavailable;
   }
   InputPrivacy privacy = InputPrivacy::kOrdinary;
   for (UINT index = 0; index < count; ++index) {
@@ -128,33 +129,38 @@ inline InputPrivacy ClassifyScope(ITfContext* context, TfEditCookie cookie) {
   if (selection.style.fInterimChar != FALSE) {
     return InputPrivacy::kBlocked;
   }
+  bool whole_selection = false;
   if (selection.style.ase == TF_AE_NONE) {
-    // Some hosts report no active end for an insertion caret. Accept that
-    // representation only when the selection itself proves it is a caret.
+    // SearchHost also reports NONE for a real nonempty selection. Without a
+    // known insertion end, require one complete scope value for the whole range;
+    // never infer permission from a collapsed endpoint or mixed/absent metadata.
     BOOL empty = FALSE;
-    if (range->IsEmpty(cookie, &empty) != S_OK || empty == FALSE) {
+    const HRESULT empty_result = range->IsEmpty(cookie, &empty);
+    if (empty_result != S_OK) {
       return InputPrivacy::kBlocked;
     }
+    whole_selection = empty == FALSE;
   } else if (selection.style.ase != TF_AE_START &&
              selection.style.ase != TF_AE_END) {
     return InputPrivacy::kBlocked;
   }
   // A nonempty selection may span distinct scope values: GetValue then returns
   // S_FALSE/VT_EMPTY, which is not evidence of an ordinary insertion point.
-  if (FAILED(range->Collapse(cookie, selection.style.ase == TF_AE_START
+  if (!whole_selection && FAILED(range->Collapse(cookie, selection.style.ase == TF_AE_START
                                         ? TF_ANCHOR_START : TF_ANCHOR_END))) {
     return InputPrivacy::kBlocked;
   }
   Microsoft::WRL::ComPtr<ITfReadOnlyProperty> property;
   const HRESULT result = context->GetAppProperty(GUID_PROP_INPUTSCOPE, property.GetAddressOf());
-  if (FAILED(result) || !property) {
-    return InputPrivacy::kRestricted;
+  if (FAILED(result) || (whole_selection && result != S_OK) || !property) {
+    return whole_selection ? InputPrivacy::kBlocked : InputPrivacy::kRestricted;
   }
   VARIANT value;
   VariantInit(&value);
   const HRESULT read = property->GetValue(cookie, range.Get(), &value);
-  const InputPrivacy privacy = SUCCEEDED(read) ? ClassifyScopeValue(value)
-                                               : InputPrivacy::kRestricted;
+  const InputPrivacy privacy = whole_selection
+      ? read == S_OK ? ClassifyScopeValue(value, true) : InputPrivacy::kBlocked
+      : SUCCEEDED(read) ? ClassifyScopeValue(value) : InputPrivacy::kRestricted;
   VariantClear(&value);
   return privacy;
 }
