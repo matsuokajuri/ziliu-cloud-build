@@ -5,11 +5,11 @@
   #error PackageSha256 must be supplied by package-alpha-installer.ps1
 #endif
 
-#define AppVersion "0.1.0-alpha.1"
-#define PackageName "Ziliu-0.1.0-alpha.1-win11-x64-unsigned-test-only.zip"
+#define AppVersion "0.1.0-alpha.20261004.7c9c164"
+#define PackageName "Ziliu-0.1.0-alpha.20261004.7c9c164-win11-x64-unsigned-test-only.zip"
 
 [Setup]
-AppId=Ziliu.0.1.0-alpha.1
+AppId=Ziliu.0.1.0-alpha.20261004.7c9c164
 AppName=Ziliu (unsigned alpha prerelease)
 AppVersion={#AppVersion}
 AppPublisher=Ziliu Project
@@ -24,7 +24,7 @@ ArchitecturesInstallIn64BitMode=x64os
 MinVersion=10.0.22000
 CloseApplications=no
 RestartApplications=no
-OutputBaseFilename=Ziliu-0.1.0-alpha.1-win11-x64-unsigned-test-only-setup
+OutputBaseFilename=Ziliu-0.1.0-alpha.20261004.7c9c164-win11-x64-unsigned-test-only-setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

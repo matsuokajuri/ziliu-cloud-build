@@ -6,8 +6,8 @@ project(
   DESCRIPTION "Ziliu - a clean, local-first Chinese input method for Windows"
   LANGUAGES CXX)
 
-set(ZILIU_RELEASE_VERSION "0.1.0-alpha.1")
-set(ZILIU_FILE_VERSION "0,1,0,1")
+set(ZILIU_RELEASE_VERSION "0.1.0-alpha.20261004.7c9c164")
+set(ZILIU_FILE_VERSION "0,1,0,1004")
 
 if(NOT WIN32)
   message(FATAL_ERROR "Ziliu is a Windows-only project.")
