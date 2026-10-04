@@ -9,7 +9,7 @@ target_include_directories(ziliu_broker_engine PUBLIC include)
 target_include_directories(ziliu_broker_engine SYSTEM PRIVATE
   "${ZILIU_DEPENDENCY_ROOT}/third_party/librime/src")
 target_compile_definitions(
-  ziliu_broker_engine PRIVATE ZILIU_DISTRIBUTION_VERSION="${ZILIU_RELEASE_VERSION}"
+  ziliu_broker_engine PRIVATE ZILIU_DISTRIBUTION_VERSION="${ZILIU_RIME_DISTRIBUTION_VERSION}"
   ZILIU_RIME_EPOCH_DIAGNOSTIC_TEST=0)
 target_link_libraries(ziliu_broker_engine PUBLIC ziliu_core PRIVATE ole32 shell32)
 ziliu_configure_target(ziliu_broker_engine)

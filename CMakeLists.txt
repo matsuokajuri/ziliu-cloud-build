@@ -9,6 +9,10 @@ project(
 set(ZILIU_RELEASE_VERSION "0.1.0-alpha.20261004.7c9c164")
 set(ZILIU_FILE_VERSION "0,1,0,1004")
 
+# Package revisions do not change the pinned Rime data contract. Its strict
+# installation.yaml admission remains tied to this frozen distribution identity.
+set(ZILIU_RIME_DISTRIBUTION_VERSION "0.1.0-alpha.1")
+
 if(NOT WIN32)
   message(FATAL_ERROR "Ziliu is a Windows-only project.")
 endif()

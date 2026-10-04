@@ -175,7 +175,7 @@ target_include_directories(ziliu_rime_epoch_diagnostic_tests SYSTEM PRIVATE
   "${ZILIU_DEPENDENCY_ROOT}/third_party/librime/src")
 target_compile_definitions(ziliu_rime_epoch_diagnostic_tests PRIVATE
   ZILIU_RIME_EPOCH_DIAGNOSTIC_TEST=1
-  ZILIU_DISTRIBUTION_VERSION="${ZILIU_RELEASE_VERSION}")
+  ZILIU_DISTRIBUTION_VERSION="${ZILIU_RIME_DISTRIBUTION_VERSION}")
 target_link_libraries(ziliu_rime_epoch_diagnostic_tests PRIVATE
   ziliu_core ziliu_rime_source_profile ole32 shell32)
 add_dependencies(ziliu_rime_epoch_diagnostic_tests ZiliuBroker)
