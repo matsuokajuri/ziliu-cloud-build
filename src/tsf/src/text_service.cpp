@@ -2,6 +2,7 @@
 #include "commit_caret.h"
 #include "input_privacy.h"
 #include "startup_key_queue.h"
+#include "document_focus_sink.h"
 #ifdef ZILIU_CONTEXT_METADATA_PROBE
 #include "context_metadata_probe.h"
 #include "context_event_trace.h"
@@ -9,6 +10,7 @@
 
 #include "ziliu/core/ipc_protocol.h"
 #include "ziliu/core/settings.h"
+#include "ziliu/core/input_focus_epoch.h"
 #include "ziliu/ipc/pipe_client.h"
 #include "ziliu/tsf/language_bar_button.h"
 #include "ziliu/tsf/module_state.h"
@@ -42,6 +44,9 @@ namespace ziliu::tsf {
 constexpr std::uint32_t kInputBrokerTimeoutMilliseconds = 500;
 
 struct TextServiceState {
+  core::InputFocusEpoch input_focus;
+  Microsoft::WRL::ComPtr<detail::DocumentFocusSink> document_focus_sink;
+  bool focus_session_dirty = false;
 #ifdef ZILIU_CONTEXT_METADATA_PROBE
   detail::ContextMetadataProbe context_probe;
   Microsoft::WRL::ComPtr<detail::ContextEventProbe> context_event_probe;
@@ -96,7 +101,8 @@ class CompositionEditSession final : public ITfEditSession {
   enum class StartupMode { kReplay, kFallback };
 
   CompositionEditSession(TextService* service, ITfContext* context, bool verify_caret = false)
-      : service_(service), context_(context), verify_caret_(verify_caret) {
+      : service_(service), context_(context), verify_caret_(verify_caret),
+        focus_epoch_(service->state_->input_focus.Capture()) {
     service_->AddRef();
     context_->AddRef();
   }
@@ -142,6 +148,7 @@ class CompositionEditSession final : public ITfEditSession {
   }
 
   STDMETHODIMP DoEditSession(TfEditCookie edit_cookie) override {
+    if (!service_->state_->input_focus.IsCurrent(focus_epoch_)) return E_ABORT;
     if (startup_generation_ != 0) {
       return startup_fallback_
                  ? service_->FallbackStartupKeys(edit_cookie, context_, startup_generation_)
@@ -167,6 +174,7 @@ class CompositionEditSession final : public ITfEditSession {
   TextService* service_;
   ITfContext* context_;
   bool verify_caret_;
+  std::uint64_t focus_epoch_;
   bool process_key_ = false;
   bool key_up_ = false;
   WPARAM key_ = 0;
@@ -581,6 +589,24 @@ STDMETHODIMP TextService::ActivateEx(ITfThreadMgr* thread_manager, TfClientId cl
     return input_mode_sink_result;
   }
 
+  if (state_->document_focus_sink) {
+    const HRESULT stopped = state_->document_focus_sink->Stop();
+    if (FAILED(stopped)) { Deactivate(); return stopped; }
+    state_->document_focus_sink.Reset();
+  }
+  state_->document_focus_sink.Attach(new (std::nothrow) detail::DocumentFocusSink());
+  const HRESULT focus_sink_result = state_->document_focus_sink
+      ? state_->document_focus_sink->Start(thread_manager_, this, [](void* owner) {
+          auto* service = static_cast<TextService*>(owner);
+          service->AddRef();
+          service->InvalidateInputFocus();
+          service->Release();
+        }) : E_OUTOFMEMORY;
+  if (FAILED(focus_sink_result)) {
+    Deactivate();
+    return focus_sink_result;
+  }
+
 #ifdef ZILIU_CONTEXT_METADATA_PROBE
   if (detail::ContextEventProbeSessionEnabled()) {
     core::ContextLifetimeToken shadow_owner{};
@@ -695,6 +721,10 @@ STDMETHODIMP TextService::ActivateEx(ITfThreadMgr* thread_manager, TfClientId cl
 }
 
 STDMETHODIMP TextService::Deactivate() {
+  if (state_->document_focus_sink && SUCCEEDED(state_->document_focus_sink->Stop())) {
+    state_->document_focus_sink.Reset();
+  }
+  state_->input_focus.Invalidate();
 #ifdef ZILIU_CONTEXT_METADATA_PROBE
   state_->context_shadow_trial.Clear();
   if (state_->context_event_probe) {
@@ -762,6 +792,7 @@ void TextService::StartBroker() {
 }
 
 bool TextService::EnsureSession() {
+  const auto focus = state_->input_focus.Capture();
   if ((activation_flags_ & TF_TMAE_SECUREMODE) != 0) {
     return false;
   }
@@ -784,16 +815,24 @@ bool TextService::EnsureSession() {
       response->session_id == 0) {
     return false;
   }
+  if (!state_->input_focus.IsCurrent(focus)) {
+    const core::ipc::Request close{state_->request_id++, response->session_id,
+                                  core::ipc::Command::kCloseSession, 0};
+    static_cast<void>(state_->client.Exchange(close));
+    return false;
+  }
   state_->session_id = response->session_id;
   state_->snapshot = response->snapshot;
   const core::ipc::Request option_request{
       state_->request_id++, state_->session_id, core::ipc::Command::kSetTraditional,
       state_->settings.character_set == core::CharacterSet::kTraditional ? 1U : 0U};
   static_cast<void>(state_->client.Exchange(option_request));
+  if (!state_->input_focus.IsCurrent(focus)) return false;
   const core::ipc::Request page_size_request{
       state_->request_id++, state_->session_id, core::ipc::Command::kSetCandidatePageSize,
       static_cast<std::uint32_t>(state_->settings.candidate_count)};
   static_cast<void>(state_->client.Exchange(page_size_request));
+  if (!state_->input_focus.IsCurrent(focus)) return false;
   const core::ipc::Request page_window_request{
       state_->request_id++, state_->session_id,
       core::ipc::Command::kSetCandidateWindowPageCount,
@@ -801,12 +840,13 @@ bool TextService::EnsureSession() {
           ? static_cast<std::uint32_t>(core::kCandidateWindowPageCount)
           : 1U};
   static_cast<void>(state_->client.Exchange(page_window_request));
+  if (!state_->input_focus.IsCurrent(focus)) return false;
   const core::ipc::Request candidate_filter_request{
       state_->request_id++, state_->session_id,
       core::ipc::Command::kSetChineseCandidatesOnly,
       state_->settings.chinese_candidates_only ? 1U : 0U};
   static_cast<void>(state_->client.Exchange(candidate_filter_request));
-  return true;
+  return state_->input_focus.IsCurrent(focus);
 }
 
 bool TextService::EnsureStartupWindow() {
@@ -827,6 +867,7 @@ bool TextService::EnsureStartupWindow() {
 }
 
 bool TextService::IsFocusedContext(ITfContext* context) const {
+  const auto focus = state_->input_focus.Capture();
   if (thread_manager_ == nullptr || context == nullptr) {
     return false;
   }
@@ -836,11 +877,12 @@ bool TextService::IsFocusedContext(ITfContext* context) const {
   }
   Microsoft::WRL::ComPtr<ITfContext> focused_context;
   return SUCCEEDED(document->GetTop(focused_context.GetAddressOf())) &&
-         focused_context.Get() == context;
+         focused_context.Get() == context && state_->input_focus.IsCurrent(focus);
 }
 
 bool TextService::CaptureStartupTarget(TfEditCookie cookie, ITfContext* context,
                                        bool capture_windows) {
+  const auto focus = state_->input_focus.Capture();
   TF_SELECTION selection{};
   ULONG fetched = 0;
   if (context == nullptr || FAILED(context->GetSelection(
@@ -848,7 +890,10 @@ bool TextService::CaptureStartupTarget(TfEditCookie cookie, ITfContext* context,
       fetched != 1 || selection.range == nullptr) {
     return false;
   }
-  state_->startup_selection.Attach(selection.range);
+  Microsoft::WRL::ComPtr<ITfRange> range;
+  range.Attach(selection.range);
+  if (!state_->input_focus.IsCurrent(focus)) return false;
+  state_->startup_selection = std::move(range);
   if (capture_windows) {
     state_->startup_focus = GetFocus();
     state_->startup_foreground = GetForegroundWindow();
@@ -857,6 +902,8 @@ bool TextService::CaptureStartupTarget(TfEditCookie cookie, ITfContext* context,
 }
 
 bool TextService::ValidateStartupTarget(TfEditCookie cookie, ITfContext* context) const {
+  const auto focus = state_->input_focus.Capture();
+  const auto original = state_->startup_selection;
   if (context == nullptr || state_->startup_selection == nullptr ||
       GetFocus() != state_->startup_focus ||
       GetForegroundWindow() != state_->startup_foreground) {
@@ -870,13 +917,15 @@ bool TextService::ValidateStartupTarget(TfEditCookie cookie, ITfContext* context
   }
   Microsoft::WRL::ComPtr<ITfRange> current;
   current.Attach(selection.range);
+  if (!state_->input_focus.IsCurrent(focus)) return false;
   BOOL same_start = FALSE;
   BOOL same_end = FALSE;
-  return SUCCEEDED(state_->startup_selection->IsEqualStart(
+  return SUCCEEDED(original->IsEqualStart(
              cookie, current.Get(), TF_ANCHOR_START, &same_start)) &&
-         SUCCEEDED(state_->startup_selection->IsEqualEnd(
+         state_->input_focus.IsCurrent(focus) &&
+         SUCCEEDED(original->IsEqualEnd(
              cookie, current.Get(), TF_ANCHOR_END, &same_end)) &&
-         same_start != FALSE && same_end != FALSE;
+         same_start != FALSE && same_end != FALSE && state_->input_focus.IsCurrent(focus);
 }
 
 LRESULT CALLBACK TextService::StartupWindowProcedure(HWND window, UINT message,
@@ -1238,6 +1287,7 @@ void TextService::ResetRuntimeState() {
   state_->key_context.Reset();
   state_->key_privacy = detail::InputPrivacy::kBlocked;
   state_->session_id = 0;
+  state_->focus_session_dirty = false;
   state_->snapshot = {};
   state_->pending_response = {};
   state_->candidate_page_offset = 0;
@@ -1257,6 +1307,7 @@ void TextService::AbandonSession(ITfContext* context) {
     static_cast<void>(state_->client.Exchange(close_request));
   }
   state_->session_id = 0;
+  state_->focus_session_dirty = false;
   state_->key_context.Reset();
   state_->key_privacy = detail::InputPrivacy::kBlocked;
   state_->snapshot = {};
@@ -1267,6 +1318,24 @@ void TextService::AbandonSession(ITfContext* context) {
   state_->broker_started = false;
 }
 
+void TextService::InvalidateInputFocus() {
+  state_->input_focus.Invalidate();
+  state_->focus_session_dirty = true;
+  // Chromium reuses a context after a document focus round trip. Invalidate
+  // locally before OnTestKeyDown can classify space/digits against old candidates.
+  CancelStartupReplay(false);
+  ClearCommittedPairCaret();
+  state_->key_context.Reset();
+  state_->key_privacy = detail::InputPrivacy::kBlocked;
+  state_->snapshot = {};
+  state_->pending_response = {};
+  state_->pending_caret_back = 0;
+  state_->candidate_page_offset = 0;
+  state_->switch_key_down = false;
+  state_->switch_key_used = false;
+  state_->candidate_window.Hide();
+}
+
 bool TextService::IsInputModeSwitchKey(WPARAM wparam) const {
   if (state_->settings.input_mode_switch_key == core::InputModeSwitchKey::kControl) {
     return wparam == VK_CONTROL || wparam == VK_LCONTROL || wparam == VK_RCONTROL;
@@ -1275,6 +1344,9 @@ bool TextService::IsInputModeSwitchKey(WPARAM wparam) const {
 }
 
 bool TextService::AllowKeyInContext(ITfContext* context, const TfEditCookie* cookie) {
+  const auto focus = state_->input_focus.Capture();
+  if (state_->focus_session_dirty) AbandonSession(context);
+  if (!state_->input_focus.IsCurrent(focus)) return false;
 #ifdef ZILIU_CONTEXT_METADATA_PROBE
   if (cookie != nullptr && IsFocusedContext(context) &&
       !detail::ContextBlocksInput(context, activation_flags_)) {
@@ -1296,6 +1368,7 @@ bool TextService::AllowKeyInContext(ITfContext* context, const TfEditCookie* coo
       : detail::ContextBlocksInput(context, activation_flags_)
             ? detail::InputPrivacy::kBlocked
             : detail::ClassifyScope(context, *cookie);
+  if (!state_->input_focus.IsCurrent(focus)) return false;
   if (privacy != detail::InputPrivacy::kBlocked) {
     if (detail::ShouldResetInputSession(
             state_->key_privacy, privacy,
@@ -1305,6 +1378,7 @@ bool TextService::AllowKeyInContext(ITfContext* context, const TfEditCookie* coo
       state_->switch_key_used = false;
       AbandonSession(context);
     }
+    if (!state_->input_focus.IsCurrent(focus)) return false;
     state_->key_context = context;
     state_->key_privacy = privacy;
     return true;
@@ -1364,17 +1438,21 @@ bool TextService::ShouldHandleKey(WPARAM wparam) const {
 }
 
 void TextService::ShowCandidateWindow() {
+  const auto focus = state_->input_focus.Capture();
+  const auto snapshot = state_->snapshot;
   if (state_->snapshot.empty()) {
     state_->candidate_window.Hide();
   } else if (state_->candidate_window.Create(state_->candidate_owner)) {
+    if (!state_->input_focus.IsCurrent(focus)) { state_->candidate_window.Hide(); return; }
     state_->candidate_page_offset =
         core::MakeCandidatePageSlice(
-            state_->snapshot.candidates.size(), state_->settings.candidate_count,
-            state_->snapshot.highlighted_index)
+            snapshot.candidates.size(), state_->settings.candidate_count,
+            snapshot.highlighted_index)
             .offset;
-    state_->candidate_window.Show(state_->snapshot, state_->candidate_anchor, state_->settings,
+    state_->candidate_window.Show(snapshot, state_->candidate_anchor, state_->settings,
                                   state_->candidate_page_offset);
   }
+  if (!state_->input_focus.IsCurrent(focus)) state_->candidate_window.Hide();
 }
 
 STDMETHODIMP TextService::OnSetFocus(BOOL foreground) {
@@ -1384,6 +1462,7 @@ STDMETHODIMP TextService::OnSetFocus(BOOL foreground) {
     state_->candidate_window.Hide();
     PublishInputMode();
   } else {
+    state_->input_focus.Invalidate();
     AbandonSession(nullptr);
   }
   return S_OK;
@@ -1408,6 +1487,7 @@ STDMETHODIMP TextService::OnSetThreadFocus() {
 }
 
 STDMETHODIMP TextService::OnKillThreadFocus() {
+  state_->input_focus.Invalidate();
   ClearCommittedPairCaret();
   AbandonSession(nullptr);
   return S_OK;
@@ -1546,6 +1626,7 @@ HRESULT TextService::HandleKeyDown(TfEditCookie cookie, ITfContext* context,
   if (!AllowKeyInContext(context, &cookie)) {
     return S_OK;
   }
+  const auto focus = state_->input_focus.Capture();
   if (IsInputModeSwitchKey(wparam)) {
     state_->switch_key_down = true;
     state_->switch_key_used = false;
@@ -1577,14 +1658,17 @@ HRESULT TextService::HandleKeyDown(TfEditCookie cookie, ITfContext* context,
     return S_OK;
   }
   if (state_->session_id == 0 && !punctuation_without_preedit && !EnsureSession()) {
+    if (!state_->input_focus.IsCurrent(focus)) return S_OK;
     QueueStartupKey(cookie, context, wparam, shifted, eaten);
     return S_OK;
   }
+  if (!state_->input_focus.IsCurrent(focus)) return S_OK;
   return ProcessKeyDown(context, wparam, shifted, eaten);
 }
 
 HRESULT TextService::ProcessKeyDown(ITfContext* context, WPARAM wparam, bool shifted,
                                     BOOL* eaten) {
+  const auto focus = state_->input_focus.Capture();
   if (!shifted && !state_->snapshot.preedit.empty()) {
     if (IsPageKey(wparam, state_->settings.page_key_set, false)) {
       return HandleCandidatePage(context, false, eaten);
@@ -1610,6 +1694,7 @@ HRESULT TextService::ProcessKeyDown(ITfContext* context, WPARAM wparam, bool shi
       if (FAILED(composition_result) || *eaten == FALSE) {
         return composition_result;
       }
+      if (!state_->input_focus.IsCurrent(focus)) return E_ABORT;
     }
     if (!paired_punctuation.empty()) {
       return CommitText(context, paired_punctuation, eaten, 1);
@@ -1673,6 +1758,7 @@ void TextService::QueueStartupKey(TfEditCookie cookie, ITfContext* context, WPAR
 
 HRESULT TextService::ReplayStartupKeys(TfEditCookie cookie, ITfContext* context,
                                        std::uint64_t generation) {
+  const auto focus = state_->input_focus.Capture();
   if (generation != state_->startup_keys.generation()) {
     return S_OK;
   }
@@ -1692,11 +1778,15 @@ HRESULT TextService::ReplayStartupKeys(TfEditCookie cookie, ITfContext* context,
     return S_OK;
   }
   if (!EnsureSession()) {
+    if (!state_->input_focus.IsCurrent(focus) || generation != state_->startup_keys.generation())
+      return S_OK;
     if (!ScheduleStartupReplay()) {
       return FallbackStartupKeys(cookie, context, generation);
     }
     return S_OK;
   }
+  if (!state_->input_focus.IsCurrent(focus) || generation != state_->startup_keys.generation())
+    return S_OK;
 
   const auto pending = state_->startup_keys.Take(generation);
   const std::size_t batch_size =
@@ -1710,10 +1800,14 @@ HRESULT TextService::ReplayStartupKeys(TfEditCookie cookie, ITfContext* context,
     BOOL replay_eaten = FALSE;
     const HRESULT result = ProcessKeyDown(context, static_cast<WPARAM>(key.key),
                                           key.shifted, &replay_eaten);
+    if (!state_->input_focus.IsCurrent(focus) || generation != state_->startup_keys.generation())
+      return S_OK;
     if (FAILED(result)) {
       if (!IsFocusedContext(context) || !AllowKeyInContext(context, &cookie)) {
         return S_OK;
       }
+      if (!state_->input_focus.IsCurrent(focus) || generation != state_->startup_keys.generation())
+        return S_OK;
       std::wstring fallback;
       bool opening_quote = state_->opening_quote;
       for (std::size_t tail = index; tail < pending.size(); ++tail) {
@@ -1742,6 +1836,8 @@ HRESULT TextService::ReplayStartupKeys(TfEditCookie cookie, ITfContext* context,
       }
     }
   }
+  if (!state_->input_focus.IsCurrent(focus) || generation != state_->startup_keys.generation())
+    return S_OK;
   for (std::size_t index = batch_size; index < pending.size(); ++index) {
     const detail::StartupKey& key = pending[index];
     if (!state_->startup_keys.Push(key.key, key.shifted, key.effect)) {
@@ -1804,6 +1900,7 @@ HRESULT TextService::FallbackStartupKeys(TfEditCookie cookie, ITfContext* contex
 
 HRESULT TextService::ToggleInputMode(ITfContext* context, BOOL* eaten,
                                      bool commit_pending_input) {
+  const auto focus = state_->input_focus.Capture();
   // A queued Chinese composition belongs to the old mode and must not be
   // replayed after the user switches to direct input.
   CancelStartupReplay(false);
@@ -1815,6 +1912,7 @@ HRESULT TextService::ToggleInputMode(ITfContext* context, BOOL* eaten,
   } else {
     ResetCompositionState();
   }
+  if (!state_->input_focus.IsCurrent(focus)) return E_ABORT;
   state_->chinese_mode = !state_->chinese_mode;
   PublishInputMode();
   if (state_->language_bar_button != nullptr) {
@@ -1839,11 +1937,13 @@ void TextService::ResetCompositionState() {
 }
 
 HRESULT TextService::HandleCandidatePage(ITfContext* context, bool next, BOOL* eaten) {
+  const auto focus = state_->input_focus.Capture();
   static_cast<void>(context);
   const core::ipc::Request request{
       state_->request_id++, state_->session_id,
       next ? core::ipc::Command::kPageDown : core::ipc::Command::kPageUp, 0};
   const auto response = state_->client.Exchange(request);
+  if (!state_->input_focus.IsCurrent(focus)) return E_ABORT;
   if (response.has_value() && response->status == core::ipc::Status::kOk && response->consumed) {
     state_->snapshot = response->snapshot;
     if (state_->settings.candidate_page_mode == core::CandidatePageMode::kMultiLine) {
@@ -1857,6 +1957,7 @@ HRESULT TextService::HandleCandidatePage(ITfContext* context, bool next, BOOL* e
 
 HRESULT TextService::CommitText(ITfContext* context, std::wstring text, BOOL* eaten,
                                 std::size_t caret_back) {
+  const auto focus = state_->input_focus.Capture();
   state_->pending_response = {};
   state_->pending_response.commit = std::move(text);
   state_->pending_caret_back = caret_back;
@@ -1868,6 +1969,7 @@ HRESULT TextService::CommitText(ITfContext* context, std::wstring text, BOOL* ea
   const HRESULT request_result = context->RequestEditSession(
       client_id_, edit_session, TF_ES_SYNC | TF_ES_READWRITE, &edit_result);
   edit_session->Release();
+  if (!state_->input_focus.IsCurrent(focus)) return E_ABORT;
   if (FAILED(request_result)) {
     return request_result;
   }
@@ -1879,11 +1981,13 @@ HRESULT TextService::CommitText(ITfContext* context, std::wstring text, BOOL* ea
 }
 
 HRESULT TextService::CommitPendingInput(ITfContext* context, BOOL* eaten) {
+  const auto focus = state_->input_focus.Capture();
   if (context == nullptr || eaten == nullptr) {
     return E_INVALIDARG;
   }
   std::wstring typed_input = state_->snapshot.plain_text();
   ResetCompositionState();
+  if (!state_->input_focus.IsCurrent(focus)) return E_ABORT;
   if (typed_input.empty()) {
     *eaten = TRUE;
     return S_OK;
@@ -1892,6 +1996,7 @@ HRESULT TextService::CommitPendingInput(ITfContext* context, BOOL* eaten) {
 }
 
 HRESULT TextService::ApplyKeyResponse(ITfContext* context, WPARAM wparam, BOOL* eaten) {
+  const auto focus = state_->input_focus.Capture();
 #ifdef ZILIU_CONTEXT_METADATA_PROBE
   const bool trace_key_state = detail::ContextKeyStateProbeAllowed() &&
       state_->key_context.Get() == context &&
@@ -1927,6 +2032,7 @@ HRESULT TextService::ApplyKeyResponse(ITfContext* context, WPARAM wparam, BOOL* 
 
   const core::ipc::Request request{state_->request_id++, state_->session_id, command, value};
   const auto response = state_->client.Exchange(request);
+  if (!state_->input_focus.IsCurrent(focus)) return E_ABORT;
   if (!response.has_value() || response->status != core::ipc::Status::kOk ||
       !response->consumed) {
     if (!response.has_value() || response->status == core::ipc::Status::kSessionNotFound) {
@@ -1946,6 +2052,7 @@ HRESULT TextService::ApplyKeyResponse(ITfContext* context, WPARAM wparam, BOOL* 
   const HRESULT request_result = context->RequestEditSession(
       client_id_, edit_session, TF_ES_SYNC | TF_ES_READWRITE, &edit_result);
   edit_session->Release();
+  if (!state_->input_focus.IsCurrent(focus)) return E_ABORT;
   if (FAILED(request_result) || FAILED(edit_result)) {
     AbandonSession(context);
     return S_OK;
@@ -1967,9 +2074,11 @@ HRESULT TextService::ApplyKeyResponse(ITfContext* context, WPARAM wparam, BOOL* 
 
 HRESULT TextService::ApplyCompositionEdit(TfEditCookie edit_cookie, ITfContext* context) {
   using Microsoft::WRL::ComPtr;
+  const auto focus = state_->input_focus.Capture();
   // The host can change scope after the key callback or while an edit is queued.
   const detail::InputPrivacy privacy = detail::ContextBlocksInput(context, activation_flags_)
       ? detail::InputPrivacy::kBlocked : detail::ClassifyScope(context, edit_cookie);
+  if (!state_->input_focus.IsCurrent(focus)) return E_ABORT;
   if (privacy == detail::InputPrivacy::kBlocked || state_->key_context.Get() != context ||
       privacy != state_->key_privacy) {
     ClearCommittedPairCaret();
@@ -1993,12 +2102,14 @@ HRESULT TextService::ApplyCompositionEdit(TfEditCookie edit_cookie, ITfContext* 
     return FAILED(selection_result) ? selection_result : E_FAIL;
   }
   range.Attach(selection.range);
+  if (!state_->input_focus.IsCurrent(focus)) return E_ABORT;
 
   if (!commit.empty()) {
     HRESULT text_result = E_FAIL;
     if (caret_back != 0) {
       ComPtr<ITfInsertAtSelection> insertion;
       const HRESULT query_result = context->QueryInterface(IID_PPV_ARGS(&insertion));
+      if (!state_->input_focus.IsCurrent(focus)) return E_ABORT;
       if (FAILED(query_result)) {
         return query_result;
       }
@@ -2007,6 +2118,7 @@ HRESULT TextService::ApplyCompositionEdit(TfEditCookie edit_cookie, ITfContext* 
       ComPtr<ITfRange> inserted;
       text_result = insertion->InsertTextAtSelection(edit_cookie, 0, commit.data(),
           static_cast<LONG>(commit.size()), inserted.GetAddressOf());
+      if (!state_->input_focus.IsCurrent(focus)) return E_ABORT;
       if (SUCCEEDED(text_result)) {
         range = std::move(inserted);
         if (caret_back == 1 && range != nullptr &&
@@ -2017,10 +2129,12 @@ HRESULT TextService::ApplyCompositionEdit(TfEditCookie edit_cookie, ITfContext* 
           state_->committed_pair_foreground = GetForegroundWindow();
           state_->committed_pair_time = GetTickCount64();
         }
+        if (!state_->input_focus.IsCurrent(focus)) { ClearCommittedPairCaret(); return E_ABORT; }
       }
     } else {
       text_result = range->SetText(edit_cookie, 0, commit.data(), static_cast<LONG>(commit.size()));
     }
+    if (!state_->input_focus.IsCurrent(focus)) return E_ABORT;
     if (FAILED(text_result)) {
       return text_result;
     }
@@ -2032,13 +2146,19 @@ HRESULT TextService::ApplyCompositionEdit(TfEditCookie edit_cookie, ITfContext* 
   if (range != nullptr) {
     ComPtr<ITfContextView> view;
     if (SUCCEEDED(context->GetActiveView(view.GetAddressOf()))) {
+      if (!state_->input_focus.IsCurrent(focus)) return E_ABORT;
       RECT text_rectangle{};
       BOOL clipped = FALSE;
       if (SUCCEEDED(view->GetTextExt(edit_cookie, range.Get(), &text_rectangle, &clipped))) {
+        if (!state_->input_focus.IsCurrent(focus)) return E_ABORT;
         state_->candidate_anchor = text_rectangle;
       }
-      static_cast<void>(view->GetWnd(&state_->candidate_owner));
+      HWND owner = nullptr;
+      static_cast<void>(view->GetWnd(&owner));
+      if (!state_->input_focus.IsCurrent(focus)) return E_ABORT;
+      state_->candidate_owner = owner;
     }
+    if (!state_->input_focus.IsCurrent(focus)) return E_ABORT;
     // Preedit, paging, backspace and cancellation only update the candidate
     // surface. Preserve the host's selection until actual text is committed so
     // the eventual commit replaces it, and Esc leaves the selection unchanged.
@@ -2046,6 +2166,7 @@ HRESULT TextService::ApplyCompositionEdit(TfEditCookie edit_cookie, ITfContext* 
       return S_OK;
     }
     const HRESULT collapse_result = detail::CollapseInsertedRange(range.Get(), edit_cookie, caret_back);
+    if (!state_->input_focus.IsCurrent(focus)) return E_ABORT;
     if (FAILED(collapse_result)) {
       return collapse_result;
     }
@@ -2067,6 +2188,10 @@ void TextService::ClearCommittedPairCaret() {
 
 HRESULT TextService::VerifyCommittedPairCaret(TfEditCookie cookie, ITfContext* context) {
   using Microsoft::WRL::ComPtr;
+  const auto focus = state_->input_focus.Capture();
+  const auto pair_range = state_->committed_pair_range;
+  const auto pair = state_->committed_pair;
+  const auto foreground = state_->committed_pair_foreground;
   state_->committed_pair_needs_left = false;
   if (!state_->committed_pair_range || context != state_->committed_pair_context.Get() ||
       state_->committed_pair.empty() || state_->committed_pair.size() > 16) {
@@ -2074,9 +2199,9 @@ HRESULT TextService::VerifyCommittedPairCaret(TfEditCookie cookie, ITfContext* c
   }
   wchar_t text[16]{};
   ULONG read = 0;
-  const HRESULT read_result = state_->committed_pair_range->GetText(cookie, 0, text, 16, &read);
-  if (FAILED(read_result) ||
-      std::wstring_view(text, read) != state_->committed_pair) {
+  const HRESULT read_result = pair_range->GetText(cookie, 0, text, 16, &read);
+  if (!state_->input_focus.IsCurrent(focus) || FAILED(read_result) ||
+      std::wstring_view(text, read) != pair) {
     return S_FALSE;
   }
   TF_SELECTION selection{};
@@ -2087,36 +2212,47 @@ HRESULT TextService::VerifyCommittedPairCaret(TfEditCookie cookie, ITfContext* c
   }
   ComPtr<ITfRange> current;
   current.Attach(selection.range);
+  if (!state_->input_focus.IsCurrent(focus)) return S_FALSE;
   LONG start = 1;
   LONG end = 1;
-  if (SUCCEEDED(current->CompareStart(cookie, state_->committed_pair_range.Get(),
+  bool needs_left = false;
+  if (SUCCEEDED(current->CompareStart(cookie, pair_range.Get(),
                                       TF_ANCHOR_END, &start)) &&
-      SUCCEEDED(current->CompareEnd(cookie, state_->committed_pair_range.Get(),
+      state_->input_focus.IsCurrent(focus) &&
+      SUCCEEDED(current->CompareEnd(cookie, pair_range.Get(),
                                     TF_ANCHOR_END, &end)) && start == 0 && end == 0) {
-    state_->committed_pair_needs_left = true;
+    needs_left = true;
   }
+  if (!state_->input_focus.IsCurrent(focus)) return S_FALSE;
   // Chromium's transitory TSF store can report our requested selection while
   // Blink commits with kMoveCursorAfterText. Do not extend this compatibility
   // path to other text stores merely because they are transitory.
   wchar_t class_name[64]{};
   TF_STATUS status{};
   ComPtr<ITfRange> intended;
-  if (!state_->committed_pair_needs_left &&
-      GetClassNameW(state_->committed_pair_foreground, class_name, 64) > 0 &&
+  if (!needs_left &&
+      GetClassNameW(foreground, class_name, 64) > 0 &&
       std::wstring_view(class_name).starts_with(L"Chrome_WidgetWin_") &&
       SUCCEEDED(context->GetStatus(&status)) &&
+      state_->input_focus.IsCurrent(focus) &&
       (status.dwStaticFlags & TF_SS_TRANSITORY) != 0 &&
-      SUCCEEDED(state_->committed_pair_range->Clone(intended.GetAddressOf())) &&
+      SUCCEEDED(pair_range->Clone(intended.GetAddressOf())) &&
+      state_->input_focus.IsCurrent(focus) &&
       SUCCEEDED(detail::CollapseInsertedRange(intended.Get(), cookie, 1)) &&
+      state_->input_focus.IsCurrent(focus) &&
       SUCCEEDED(current->CompareStart(cookie, intended.Get(), TF_ANCHOR_START, &start)) &&
+      state_->input_focus.IsCurrent(focus) &&
       SUCCEEDED(current->CompareEnd(cookie, intended.Get(), TF_ANCHOR_END, &end)) &&
       start == 0 && end == 0) {
-    state_->committed_pair_needs_left = true;
+    needs_left = true;
   }
+  if (!state_->input_focus.IsCurrent(focus)) return S_FALSE;
+  state_->committed_pair_needs_left = needs_left;
   return S_OK;
 }
 
 void TextService::FinishCommittedPairCaret(ITfContext* context) {
+  const auto focus = state_->input_focus.Capture();
   if (!state_->committed_pair_range) {
     return;
   }
@@ -2125,8 +2261,8 @@ void TextService::FinishCommittedPairCaret(ITfContext* context) {
   if (HasShiftModifier() || HasControlModifier() || HasAltModifier()) {
     return;
   }
-  const auto same_focus = [this, context]() {
-    return context == state_->committed_pair_context.Get() &&
+  const auto same_focus = [this, context, focus]() {
+    return state_->input_focus.IsCurrent(focus) && context == state_->committed_pair_context.Get() &&
            state_->committed_pair_focus != nullptr &&
            GetFocus() == state_->committed_pair_focus &&
            GetForegroundWindow() == state_->committed_pair_foreground &&
@@ -2202,7 +2338,9 @@ HRESULT TextService::HandleKeyUp(TfEditCookie cookie, ITfContext* context,
   if (!AllowKeyInContext(context, &cookie)) {
     return S_OK;
   }
+  const auto focus = state_->input_focus.Capture();
   FinishCommittedPairCaret(context);
+  if (!state_->input_focus.IsCurrent(focus)) return S_OK;
   if (!IsInputModeSwitchKey(wparam) || !state_->switch_key_down) {
     return S_OK;
   }

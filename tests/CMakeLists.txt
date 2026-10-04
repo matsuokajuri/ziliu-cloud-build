@@ -35,6 +35,17 @@ target_link_libraries(ziliu_tsf_context_event_probe_tests PRIVATE ole32 uuid)
 ziliu_configure_target(ziliu_tsf_context_event_probe_tests)
 add_test(NAME ziliu_tsf_context_event_probe_tests COMMAND ziliu_tsf_context_event_probe_tests)
 
+add_executable(ziliu_input_focus_epoch_tests input_focus_epoch_tests.cpp)
+target_link_libraries(ziliu_input_focus_epoch_tests PRIVATE ziliu_core)
+ziliu_configure_target(ziliu_input_focus_epoch_tests)
+add_test(NAME ziliu_input_focus_epoch_tests COMMAND ziliu_input_focus_epoch_tests)
+
+add_executable(ziliu_tsf_document_focus_sink_tests tsf_document_focus_sink_tests.cpp)
+target_include_directories(ziliu_tsf_document_focus_sink_tests PRIVATE ../src/tsf/include ../src/core/include)
+target_link_libraries(ziliu_tsf_document_focus_sink_tests PRIVATE ole32 uuid)
+ziliu_configure_target(ziliu_tsf_document_focus_sink_tests)
+add_test(NAME ziliu_tsf_document_focus_sink_tests COMMAND ziliu_tsf_document_focus_sink_tests)
+
 # A deliberately manual, visible host fixture for guest-only privacy acceptance.
 # It is excluded from normal builds and is not part of the product/package payload.
 add_executable(ziliu_alpha_input_scope_host WIN32 EXCLUDE_FROM_ALL alpha_input_scope_host.cpp)

@@ -92,6 +92,7 @@ class TextService final : public ITfTextInputProcessorEx,
   void FinishCommittedPairCaret(ITfContext* context);
   void ClearCommittedPairCaret();
   void AbandonSession(ITfContext* context);
+  void InvalidateInputFocus();
   void RefreshSettings(bool force);
   HRESULT AdviseInputModeSinks();
   void UnadviseInputModeSinks();

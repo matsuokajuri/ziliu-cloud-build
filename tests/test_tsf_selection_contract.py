@@ -22,7 +22,7 @@ class SelectionContractTests(unittest.TestCase):
     def test_noncommit_exits_before_selection_mutation(self):
         body = composition_edit()
         # Anchor calculation is still needed while showing a preedit candidate.
-        anchor_end = body.index("static_cast<void>(view->GetWnd(&state_->candidate_owner));")
+        anchor_end = body.index("view->GetWnd(")
         collapse = body.index("detail::CollapseInsertedRange(")
         between = body[anchor_end:collapse]
         self.assertRegex(between, r"if\s*\(commit\.empty\(\)\)\s*\{\s*return S_OK;\s*\}")
