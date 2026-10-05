@@ -16,7 +16,7 @@ if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
   $OutputDirectory = Split-Path -Parent $zip
 }
 $output = [System.IO.Path]::GetFullPath($OutputDirectory)
-$name = 'Ziliu-0.1.0-alpha.20261004.7c9c164-win11-x64-unsigned-test-only-setup.exe'
+$name = 'Ziliu-0.1.0-alpha.20261005.997f466-win11-x64-unsigned-test-only-setup.exe'
 $installer = Join-Path $output $name
 
 if ($ExpectedSha256 -notmatch '^[0-9a-fA-F]{64}$') {

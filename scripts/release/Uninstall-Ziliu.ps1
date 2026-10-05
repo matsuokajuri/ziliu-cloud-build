@@ -119,7 +119,7 @@ function Remove-OwnBrokerRunValue {
 }
 
 Assert-Administrator
-$expectedRoot = Join-Path ([System.IO.Path]::GetFullPath($env:ProgramFiles)) "Ziliu\0.1.0-alpha.20261004.7c9c164"
+$expectedRoot = Join-Path ([System.IO.Path]::GetFullPath($env:ProgramFiles)) "Ziliu\0.1.0-alpha.20261005.997f466"
 if (-not [string]::Equals($versionRoot, $expectedRoot,
                           [System.StringComparison]::OrdinalIgnoreCase)) {
   throw "Refusing to uninstall from an unexpected directory: $versionRoot"
@@ -136,7 +136,7 @@ if ($cleanupPending) {
     throw "Cleanup receipt must not be a reparse point."
   }
   $receipt = Get-Content -Raw -LiteralPath $receiptPath | ConvertFrom-Json
-  if ($receipt.version -ne "0.1.0-alpha.20261004.7c9c164" -or
+  if ($receipt.version -ne "0.1.0-alpha.20261005.997f466" -or
       $receipt.versionRoot -ne $versionRoot -or
       $receipt.manifestSha256 -ne $manifestHash) {
     throw "Cleanup receipt does not match this managed installation."
@@ -182,7 +182,7 @@ if (-not $cleanupPending) {
     throw "COM registration still exists after uninstall; no program files were removed."
   }
   $receipt = [ordered]@{
-    version = "0.1.0-alpha.20261004.7c9c164"
+    version = "0.1.0-alpha.20261005.997f466"
     versionRoot = $versionRoot
     manifestSha256 = $manifestHash
   }

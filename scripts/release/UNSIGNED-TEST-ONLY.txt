@@ -1,4 +1,4 @@
-Ziliu 0.1.0-alpha.20261004.7c9c164 unsigned early test release
+Ziliu 0.1.0-alpha.20261005.997f466 unsigned early test release
 
 THIS PACKAGE IS UNSIGNED AND IS NOT A STABLE RELEASE.
 Windows SmartScreen may warn about an unknown publisher or block installation.

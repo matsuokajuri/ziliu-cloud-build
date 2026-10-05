@@ -6,8 +6,8 @@ project(
   DESCRIPTION "Ziliu - a clean, local-first Chinese input method for Windows"
   LANGUAGES CXX)
 
-set(ZILIU_RELEASE_VERSION "0.1.0-alpha.20261004.7c9c164")
-set(ZILIU_FILE_VERSION "0,1,0,1004")
+set(ZILIU_RELEASE_VERSION "0.1.0-alpha.20261005.997f466")
+set(ZILIU_FILE_VERSION "0,1,0,1005")
 
 # Package revisions do not change the pinned Rime data contract. Its strict
 # installation.yaml admission remains tied to this frozen distribution identity.
