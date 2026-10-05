@@ -46,6 +46,22 @@ target_link_libraries(ziliu_tsf_document_focus_sink_tests PRIVATE ole32 uuid)
 ziliu_configure_target(ziliu_tsf_document_focus_sink_tests)
 add_test(NAME ziliu_tsf_document_focus_sink_tests COMMAND ziliu_tsf_document_focus_sink_tests)
 
+# Headless integration harness compiles the real TextService implementation.
+# Test adapters replace IPC and candidate rendering, not TSF control flow.
+add_executable(ziliu_tsf_text_service_reentrancy_tests
+  tsf_text_service_reentrancy_tests.cpp
+  ../src/tsf/src/language_bar_button.cpp)
+target_compile_definitions(ziliu_tsf_text_service_reentrancy_tests PRIVATE
+  ZILIU_TSF_REENTRANCY_TEST=1)
+target_include_directories(ziliu_tsf_text_service_reentrancy_tests PRIVATE
+  ../src/tsf/include ../src/ipc/include ../src/ui/include)
+target_link_libraries(ziliu_tsf_text_service_reentrancy_tests PRIVATE
+  ziliu_core ole32 oleaut32 shell32 uuid user32 gdi32)
+ziliu_configure_target(ziliu_tsf_text_service_reentrancy_tests)
+add_test(NAME ziliu_tsf_text_service_reentrancy_tests
+  COMMAND ziliu_tsf_text_service_reentrancy_tests)
+set_tests_properties(ziliu_tsf_text_service_reentrancy_tests PROPERTIES TIMEOUT 10)
+
 # A deliberately manual, visible host fixture for guest-only privacy acceptance.
 # It is excluded from normal builds and is not part of the product/package payload.
 add_executable(ziliu_alpha_input_scope_host WIN32 EXCLUDE_FROM_ALL alpha_input_scope_host.cpp)

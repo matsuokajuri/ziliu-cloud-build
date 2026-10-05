@@ -868,11 +868,13 @@ bool TextService::EnsureStartupWindow() {
 
 bool TextService::IsFocusedContext(ITfContext* context) const {
   const auto focus = state_->input_focus.Capture();
-  if (thread_manager_ == nullptr || context == nullptr) {
+  // GetFocus can reenter Deactivate and release the service's manager reference.
+  const Microsoft::WRL::ComPtr<ITfThreadMgr> manager = thread_manager_;
+  if (manager == nullptr || context == nullptr) {
     return false;
   }
   Microsoft::WRL::ComPtr<ITfDocumentMgr> document;
-  if (FAILED(thread_manager_->GetFocus(document.GetAddressOf())) || document == nullptr) {
+  if (FAILED(manager->GetFocus(document.GetAddressOf())) || document == nullptr) {
     return false;
   }
   Microsoft::WRL::ComPtr<ITfContext> focused_context;

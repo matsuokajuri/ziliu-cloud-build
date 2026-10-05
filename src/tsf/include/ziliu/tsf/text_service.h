@@ -51,6 +51,9 @@ class TextService final : public ITfTextInputProcessorEx,
 
  private:
   friend class CompositionEditSession;
+#ifdef ZILIU_TSF_REENTRANCY_TEST
+  friend struct TextServiceTestPeer;
+#endif
 
   ~TextService();
 
