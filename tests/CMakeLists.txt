@@ -4,6 +4,11 @@ ziliu_configure_target(ziliu_core_tests)
 
 add_test(NAME ziliu_core_tests COMMAND ziliu_core_tests)
 
+add_executable(ziliu_window_placement_tests window_placement_tests.cpp)
+target_link_libraries(ziliu_window_placement_tests PRIVATE ziliu_core)
+ziliu_configure_target(ziliu_window_placement_tests)
+add_test(NAME ziliu_window_placement_tests COMMAND ziliu_window_placement_tests)
+
 add_executable(ziliu_dictionary_epoch_tests dictionary_epoch_tests.cpp)
 target_link_libraries(ziliu_dictionary_epoch_tests PRIVATE ziliu_core)
 ziliu_configure_target(ziliu_dictionary_epoch_tests)
@@ -34,6 +39,33 @@ target_include_directories(ziliu_tsf_context_event_probe_tests PRIVATE ../src/ts
 target_link_libraries(ziliu_tsf_context_event_probe_tests PRIVATE ole32 uuid)
 ziliu_configure_target(ziliu_tsf_context_event_probe_tests)
 add_test(NAME ziliu_tsf_context_event_probe_tests COMMAND ziliu_tsf_context_event_probe_tests)
+
+add_executable(ziliu_input_focus_epoch_tests input_focus_epoch_tests.cpp)
+target_link_libraries(ziliu_input_focus_epoch_tests PRIVATE ziliu_core)
+ziliu_configure_target(ziliu_input_focus_epoch_tests)
+add_test(NAME ziliu_input_focus_epoch_tests COMMAND ziliu_input_focus_epoch_tests)
+
+add_executable(ziliu_tsf_document_focus_sink_tests tsf_document_focus_sink_tests.cpp)
+target_include_directories(ziliu_tsf_document_focus_sink_tests PRIVATE ../src/tsf/include ../src/core/include)
+target_link_libraries(ziliu_tsf_document_focus_sink_tests PRIVATE ole32 uuid)
+ziliu_configure_target(ziliu_tsf_document_focus_sink_tests)
+add_test(NAME ziliu_tsf_document_focus_sink_tests COMMAND ziliu_tsf_document_focus_sink_tests)
+
+# Headless integration harness compiles the real TextService implementation.
+# Test adapters replace IPC and candidate rendering, not TSF control flow.
+add_executable(ziliu_tsf_text_service_reentrancy_tests
+  tsf_text_service_reentrancy_tests.cpp
+  ../src/tsf/src/language_bar_button.cpp)
+target_compile_definitions(ziliu_tsf_text_service_reentrancy_tests PRIVATE
+  ZILIU_TSF_REENTRANCY_TEST=1)
+target_include_directories(ziliu_tsf_text_service_reentrancy_tests PRIVATE
+  ../src/tsf/include ../src/ipc/include ../src/ui/include)
+target_link_libraries(ziliu_tsf_text_service_reentrancy_tests PRIVATE
+  ziliu_core ole32 oleaut32 shell32 uuid user32 gdi32)
+ziliu_configure_target(ziliu_tsf_text_service_reentrancy_tests)
+add_test(NAME ziliu_tsf_text_service_reentrancy_tests
+  COMMAND ziliu_tsf_text_service_reentrancy_tests)
+set_tests_properties(ziliu_tsf_text_service_reentrancy_tests PROPERTIES TIMEOUT 10)
 
 # A deliberately manual, visible host fixture for guest-only privacy acceptance.
 # It is excluded from normal builds and is not part of the product/package payload.
@@ -164,7 +196,7 @@ target_include_directories(ziliu_rime_epoch_diagnostic_tests SYSTEM PRIVATE
   "${ZILIU_DEPENDENCY_ROOT}/third_party/librime/src")
 target_compile_definitions(ziliu_rime_epoch_diagnostic_tests PRIVATE
   ZILIU_RIME_EPOCH_DIAGNOSTIC_TEST=1
-  ZILIU_DISTRIBUTION_VERSION="${ZILIU_RELEASE_VERSION}")
+  ZILIU_DISTRIBUTION_VERSION="${ZILIU_RIME_DISTRIBUTION_VERSION}")
 target_link_libraries(ziliu_rime_epoch_diagnostic_tests PRIVATE
   ziliu_core ziliu_rime_source_profile ole32 shell32)
 add_dependencies(ziliu_rime_epoch_diagnostic_tests ZiliuBroker)

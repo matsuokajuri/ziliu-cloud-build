@@ -6,8 +6,12 @@ project(
   DESCRIPTION "Ziliu - a clean, local-first Chinese input method for Windows"
   LANGUAGES CXX)
 
-set(ZILIU_RELEASE_VERSION "0.1.0-alpha.1")
-set(ZILIU_FILE_VERSION "0,1,0,1")
+set(ZILIU_RELEASE_VERSION "0.1.0-alpha.20261005.997f466")
+set(ZILIU_FILE_VERSION "0,1,0,1005")
+
+# Package revisions do not change the pinned Rime data contract. Its strict
+# installation.yaml admission remains tied to this frozen distribution identity.
+set(ZILIU_RIME_DISTRIBUTION_VERSION "0.1.0-alpha.1")
 
 if(NOT WIN32)
   message(FATAL_ERROR "Ziliu is a Windows-only project.")

@@ -51,6 +51,9 @@ class TextService final : public ITfTextInputProcessorEx,
 
  private:
   friend class CompositionEditSession;
+#ifdef ZILIU_TSF_REENTRANCY_TEST
+  friend struct TextServiceTestPeer;
+#endif
 
   ~TextService();
 
@@ -92,6 +95,7 @@ class TextService final : public ITfTextInputProcessorEx,
   void FinishCommittedPairCaret(ITfContext* context);
   void ClearCommittedPairCaret();
   void AbandonSession(ITfContext* context);
+  void InvalidateInputFocus();
   void RefreshSettings(bool force);
   HRESULT AdviseInputModeSinks();
   void UnadviseInputModeSinks();

@@ -239,7 +239,7 @@ Assert-NoReparseTree -Root $payloadRoot
 $entries = @(Read-VerifiedManifest -Root $payloadRoot -Path $manifestPath)
 $releasePath = Join-Path $payloadRoot "release.json"
 $release = Get-Content -Raw -LiteralPath $releasePath | ConvertFrom-Json
-if ($release.product -ne "Ziliu" -or $release.version -ne "0.1.0-alpha.1" -or
+if ($release.product -ne "Ziliu" -or $release.version -ne "0.1.0-alpha.20261005.997f466" -or
     $release.platform -ne "windows-11-x64" -or $release.signed -ne $false -or
     $release.testOnly -ne $true -or $release.windowsAppSdkDeployment -ne "self-contained" -or
     $release.userDataPolicy -ne "preserve") {

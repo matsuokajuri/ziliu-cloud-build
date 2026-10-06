@@ -7,6 +7,7 @@
 #include "MainWindow.g.cpp"
 
 #include "ziliu/core/settings.h"
+#include "ziliu/core/window_placement.h"
 
 #include <dwmapi.h>
 #include <dwrite.h>
@@ -1568,8 +1569,23 @@ void MainWindow::ConfigureWindow(bool quick_menu, int anchor_x, int anchor_y) {
   if (!quick_menu) {
     ExtendsContentIntoTitleBar(true);
     SetTitleBar(SettingsTitleBar());
-    SetWindowPos(window_handle, nullptr, 0, 0, scaled(1100), scaled(820),
-                 SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    const HMONITOR monitor = MonitorFromWindow(window_handle, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO monitor_info{sizeof(monitor_info)};
+    if (!GetMonitorInfoW(monitor, &monitor_info)) {
+      monitor_info.rcWork = RECT{0, 0, GetSystemMetrics(SM_CXSCREEN),
+                                 GetSystemMetrics(SM_CYSCREEN)};
+    }
+    RECT current{monitor_info.rcWork.left, monitor_info.rcWork.top, 0, 0};
+    static_cast<void>(GetWindowRect(window_handle, &current));
+    const auto placement = ziliu::core::FitWindowToWorkArea(
+        {static_cast<int>(current.left), static_cast<int>(current.top),
+         scaled(1100), scaled(820)},
+        {static_cast<int>(monitor_info.rcWork.left),
+         static_cast<int>(monitor_info.rcWork.top),
+         static_cast<int>(monitor_info.rcWork.right - monitor_info.rcWork.left),
+         static_cast<int>(monitor_info.rcWork.bottom - monitor_info.rcWork.top)});
+    SetWindowPos(window_handle, nullptr, placement.left, placement.top,
+                 placement.width, placement.height, SWP_NOZORDER | SWP_NOACTIVATE);
     return;
   }
 

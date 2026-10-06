@@ -111,13 +111,14 @@
                     <NavigationViewItem Content="外观" Tag="appearance">
                         <NavigationViewItem.Icon><FontIcon Glyph="&#xE790;" /></NavigationViewItem.Icon>
                     </NavigationViewItem>
-                    <NavigationViewItem Content="词库" Tag="dictionary">
+                    <!-- These pages are reserved but currently have no controls. -->
+                    <NavigationViewItem Content="词库" Tag="dictionary" Visibility="Collapsed">
                         <NavigationViewItem.Icon><FontIcon Glyph="&#xE82D;" /></NavigationViewItem.Icon>
                     </NavigationViewItem>
                     <NavigationViewItem Content="按键" Tag="keys">
                         <NavigationViewItem.Icon><FontIcon Glyph="&#xE765;" /></NavigationViewItem.Icon>
                     </NavigationViewItem>
-                    <NavigationViewItem Content="高级" Tag="advanced">
+                    <NavigationViewItem Content="高级" Tag="advanced" Visibility="Collapsed">
                         <NavigationViewItem.Icon><FontIcon Glyph="&#xE713;" /></NavigationViewItem.Icon>
                     </NavigationViewItem>
                 </NavigationView.MenuItems>

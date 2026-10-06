@@ -9,7 +9,7 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$version = "0.1.0-alpha.1"
+$version = "0.1.0-alpha.20261005.997f466"
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 if ([string]::IsNullOrWhiteSpace($SourceDirectory)) {
   $SourceDirectory = Join-Path $repositoryRoot "build\local-x64-Release\bin"

@@ -27,7 +27,7 @@
 在 PowerShell 中查看文件哈希：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 -LiteralPath .\Ziliu-0.1.0-alpha.1-win11-x64-unsigned-test-only.zip
+Get-FileHash -Algorithm SHA256 -LiteralPath .\Ziliu-0.1.0-alpha.20261005.997f466-win11-x64-unsigned-test-only.zip
 ```
 
 ZIP 解压后的根目录包含 `Install-Ziliu.ps1`。以下命令只验证包内容，不安装或注册输入法：
