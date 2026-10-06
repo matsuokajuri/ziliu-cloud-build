@@ -4,6 +4,11 @@ ziliu_configure_target(ziliu_core_tests)
 
 add_test(NAME ziliu_core_tests COMMAND ziliu_core_tests)
 
+add_executable(ziliu_window_placement_tests window_placement_tests.cpp)
+target_link_libraries(ziliu_window_placement_tests PRIVATE ziliu_core)
+ziliu_configure_target(ziliu_window_placement_tests)
+add_test(NAME ziliu_window_placement_tests COMMAND ziliu_window_placement_tests)
+
 add_executable(ziliu_dictionary_epoch_tests dictionary_epoch_tests.cpp)
 target_link_libraries(ziliu_dictionary_epoch_tests PRIVATE ziliu_core)
 ziliu_configure_target(ziliu_dictionary_epoch_tests)
