@@ -63,7 +63,7 @@ python -B -m unittest discover -s tests -p "test_*.py" -v
 默认输入为 `build/local-x64-Release/bin`，输出为 `build/release`。打包脚本会整理允许的程序文件、资源、许可与校验信息。若需要安装器，在已安装 Inno Setup 6 的环境执行：
 
 ```powershell
-$packageZip = '.\build\release\Ziliu-0.1.0-alpha.1-win11-x64-unsigned-test-only.zip'
+$packageZip = '.\build\release\Ziliu-0.1.0-alpha.20261005.997f466-win11-x64-unsigned-test-only.zip'
 $packageHash = (Get-FileHash -LiteralPath $packageZip -Algorithm SHA256).Hash
 .\scripts\package-alpha-installer.ps1 -PackageZip $packageZip -ExpectedSha256 $packageHash
 ```
