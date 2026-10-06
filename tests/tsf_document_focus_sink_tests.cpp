@@ -52,7 +52,7 @@ struct Registration {
 
 struct Manager final : ITfThreadMgr, ITfSource {
   ULONG refs = 1;
-  
+
   Registration registration;
   STDMETHODIMP QueryInterface(REFIID id, void** out) override {
     if (!out) return E_POINTER;
